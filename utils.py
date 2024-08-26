@@ -301,7 +301,7 @@ class Fasta_manipulations :
             spec_map_id_reversed[v] = k
         self.spec_map_id_reversed = spec_map_id_reversed
     
-    def blind_search(self, df:pandas.DataFrame, ) :
+    def blind_search(self, df:pandas.DataFrame, path_to_out_strain_statistics='') :
         # self.score_threshold
         cnt, top_5_k, md_ar1, id_ar1 = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold)
         md_ar2 = []
@@ -341,8 +341,8 @@ class Fasta_manipulations :
                                                                'Sprot':[SP],
                                                                'Uniprot':[UN]})])
 
-        if self.path_to_out_strain_statistics :
-            report.to_csv(self.path_to_out_strain_statistics, index=False)
+        if path_to_out_strain_statistics :
+            report.to_csv(path_to_out_strain_statistics, index=False)
         random.shuffle(prots)
         with open(self.path_to_top15_leaders_fasta, 'w') as f :
             fasta.write(prots, output=f)

@@ -19,13 +19,14 @@ def run():
     # parser.add_argument('-example_cfg', nargs='?', help='Path to create example config .ini file or not if not stated', type=str, default='', const='')
     parser.add_argument('-full_uniprot_fasta', nargs='?', help='Path to full bacterial SwissProt+TrEMBL .fasta file to search organisms in', type=str, default='', )
     parser.add_argument('-uniprot_folder', nargs='?', help='Path to folder to store .fasta files splited by taxonomic identifiers from uniprot', type=str, default='', )
-    parser.add_argument('-swissprot_folder', nargs='?', help='Path to folder to store .fasta files splited by taxonomic identifiers from swissprot', type=str, default='', )
+    parser.add_argument('-sprot_folder', nargs='?', help='Path to folder to store .fasta files splited by taxonomic identifiers from swissprot', type=str, default='', )
     
     parser.add_argument('-input_files', nargs='?', help='input .raw or .mzML files to search, separated by whitespace', type=str, default='',)
     parser.add_argument('-raw_folder', nargs='?', help='Input directory with .raw files', type=str, default='', const='')
     parser.add_argument('-outdir', nargs='?', help='Output directory', type=str, default='', const='')
     parser.add_argument('-mzML_folder', nargs='?', help='Directory to search or to store .mzML files after convertation', type=str, default='', const='')
     parser.add_argument('-feature_folder', nargs='?', help='Path to folder where to store and search for biosaur2 features .tsv files', type=str, default='', const='')
+    parser.add_argument('-temp_folder', nargs='?', help='Path to folder where to store and search for temporary files that could help reproduce analysis faster', type=str, default='', const='')
 
     parser.add_argument('-decoy_prefix', nargs='?', help='String added to the protein name to showcase that it is a decoy (default: DECOY)', type=str, default='DECOY', const='DECOY')
     parser.add_argument('-sprot_suf', nargs='?', help='String added to the taxid of the organism\'s .fasta file to showcase swissprot database (default: _sp)', type=str, default='_sp', const='_sp')
@@ -38,11 +39,15 @@ def run():
     parser.add_argument('-mass_accuracy', help='Mass accuracy in ppm for initial search', default=4, type=float, const=4)
     parser.add_argument('-mz_for_mass_accuracy', help='Approximate maximum m/z value to use with mass_accuracy', default=1000, type=float, const=1000)
     parser.add_argument('-allowed_ranks', nargs='?', help='Allowed taxonomy categories between <...> and <...>, default="strain,subspecies,forma specialis,isolate,serotype,serogroup,no rank" ', type=str, default='strain,subspecies,forma specialis,isolate,serotype,serogroup,no rank',)
+    parser.add_argument('-min_prot', help="Minimal number of proteins in leader's fasta to write in 10% organisms fasta", default=200, type=float, const=200)
     ##############
     parser.add_argument('-score_threshold', help='', default=4, type=float, const=4)
+    parser.add_argument('-min_prot', help='', default=4, type=float, const=4)
     parser.add_argument('-rewrite_individual_taxid_fasta', help='', default=0, type=int, const=0, choice=[0, 1])
     parser.add_argument('-rewrite_10per_fasta', help='', default=0, type=int, const=0, choice=[0, 1])
     parser.add_argument('-rewrite_blind_search', help='', default=0, type=int, const=0, choice=[0, 1])
+    parser.add_argument('-rewrite_mzml', help='', default=0, type=int, const=0, choice=[0, 1])
+    parser.add_argument('-rewrite_features', help='', default=0, type=int, const=0, choice=[0, 1])
     # self.aa_mass = args['aa_mass'] # см. парсинг в ms1searchpy
     
     # может в единый dict их засунуть?
