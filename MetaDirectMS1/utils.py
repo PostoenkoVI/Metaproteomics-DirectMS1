@@ -56,7 +56,6 @@ class Fasta_manipulations :
         self.path_to_protsN = all_paths['protsN']
         self.path_to_accurate_mz_map = all_paths['accurate_mz_map']
         self.path_to_spec_map_id_reversed = all_paths['spec_map_id_reversed']
-        self.path_to_top15_leaders_fasta = all_paths['top_leaders_fasta']
     
     def prepare_uniprot_taxid_set(self, dump:bool=False) :
         uniprot_taxid_set = set()
@@ -317,7 +316,7 @@ class Fasta_manipulations :
             spec_map_id_reversed[v] = k
         self.spec_map_id_reversed = spec_map_id_reversed
     
-    def blind_search(self, df:pd.DataFrame, path_to_out_strain_statistics='') :
+    def blind_search(self, df:pd.DataFrame, path_to_out_fasta='', path_to_out_strain_statistics='') :
         cnt, top_5_k, md_ar1, id_ar1 = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold)
         md_ar2 = []
         for z1, z2 in zip(md_ar1, id_ar1):
@@ -358,7 +357,7 @@ class Fasta_manipulations :
         if path_to_out_strain_statistics :
             report.to_csv(path_to_out_strain_statistics, index=False)
         random.shuffle(prots)
-        with open(self.path_to_top15_leaders_fasta, 'w') as f :
+        with open(path_to_out_fasta, 'w') as f :
             fasta.write(prots, output=f)
                            
     def get_matches(self, 

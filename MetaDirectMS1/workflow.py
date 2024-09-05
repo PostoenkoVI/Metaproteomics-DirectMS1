@@ -25,7 +25,7 @@ def initialisation(args) :
             input_type = 'feature'
             all_paths[input_type] = {}
             folder = path.abspath(args['feature_folder'])
-            input_files = [path.join(folder, input_file) for input_file in listdir(folder) if input_file.lower().endswith('.tsv')]
+            input_files = [path.join(folder, input_file) for input_file in listdir(folder) if input_file.lower().endswith('_features.tsv')]
             if (len(input_files) == 0) :
                 logger.info('No .tsv files found in %s', args['feature_folder'])
         if (len(input_files) == 0) and args['mzml_folder'] and path.exists(path.abspath(args['mzml_folder'])) :
@@ -118,12 +118,6 @@ def initialisation(args) :
         all_paths['sprot_folder'] = args['sprot_folder']
     makedirs(all_paths['uniprot_folder'], exist_ok=True)
     makedirs(all_paths['sprot_folder'], exist_ok=True)
-
-    # if not args['mzml_folder'] :
-    #     all_paths['mzml_folder'] = path.join(all_paths['outdir'], 'features')
-    # else :
-    #     all_paths['feature_folder'] = args['feature_folder']
-    # makedirs(all_paths['feature_folder'], exist_ok=True)
     
     if not args['feature_folder'] :
         all_paths['feature_folder'] = path.join(all_paths['outdir'], 'features')
@@ -136,10 +130,7 @@ def initialisation(args) :
     else :
         all_paths['10per_fasta'] = args['10per_fasta']
     
-    if not args['top_leaders_fasta'] :
-        all_paths['top_leaders_fasta'] = path.join(all_paths['outdir'], 'top_leaders_fasta.fasta')
-    else :
-        all_paths['top_leaders_fasta'] = args['top_leaders_fasta']
+    all_paths['top_leaders_fasta'] = {}
     
     if not args['temp_folder'] :
         all_paths['temp_folder'] = path.join(all_paths['outdir'], 'tmp')
@@ -270,17 +261,19 @@ def process_files(args) :
     fmanip.reverse_spec_map_id()
     fmanip.mz_map()
     
-    if rewrite_dict['blind_search'] or (not path.exists(all_paths['top_leaders_fasta'])) :
-        for sample, feature_path in all_paths['feature'].items() :
+    for sample, feature_path in all_paths['feature'].items() :
+        if rewrite_dict['blind_search'] or (not path.exists(path.join(all_paths['outdir'], sample+'_top_organisms.fasta') )) :
             df = prepare_df(feature_path)
             out_stat_path = path.join(all_paths['outdir'], sample+'_strain_statistics.tsv')
-            fmanip.blind_search(df, path_to_out_strain_statistics=out_stat_path)
+            out_fasta = path.join(all_paths['outdir'], sample+'_top_organisms.fasta')
+            all_paths['top_leaders_fasta'][sample] = out_fasta
+            fmanip.blind_search(df, path_to_out_fasta=out_fasta, path_to_out_strain_statistics=out_stat_path)
             
     if rewrite_dict['ms1search'] :
         for sample, feature_path in all_paths['feature'].items() :
             call_ms1searchpy(args['ms1searchpy'], 
                              feature_path, 
-                             all_paths['top_leaders_fasta'], 
+                             all_paths['top_leaders_fasta'][sample], 
                              path_to_deeplc=args['deeplc'],
                              cleavage_rule=args['cleavage_rule'], 
                              decoy_prefix=args['decoy_prefix'],
