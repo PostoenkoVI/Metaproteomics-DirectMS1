@@ -9,7 +9,7 @@ from scipy.stats import binom
 from scipy.optimize import curve_fit
 from copy import copy, deepcopy
 from os import path, listdir
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import random
 import logging
 import subprocess
@@ -317,12 +317,31 @@ class Fasta_manipulations :
         self.spec_map_id_reversed = spec_map_id_reversed
     
     def blind_search(self, df:pd.DataFrame, path_to_out_fasta='', path_to_out_strain_statistics='') :
+#         using under hood 
+#         self.mass_accuracy
+#         self.score_threshold
+#         self.cnt_to_spec
+#         self.num_top_spec
+#         self.spec_map_id_reversed
+#         self.len_fasta_uniprot
+#         self.exclude_names
+#         self.sprot_suf
+#         self.path_to_sprot_dbs
+#         self.uniprot_suf
+#         self.path_to_uniprot_dbs
+#         self.accurate_mz_map
+#         self.prot_sets
+#         self.protsN
+        
         cnt, top_5_k, md_ar1, id_ar1 = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold)
         md_ar2 = []
         for z1, z2 in zip(md_ar1, id_ar1):
             if self.cnt_to_spec[z2-1] in top_5_k:
                 md_ar2.append(z1)
-        
+        if len(md_ar2) == 0 :
+            logger.debug('Something went wrong during blind search')
+            return 1
+         
         shift, sigma = optimize_md(md_ar2, bin_width=0.1) ######################## bin_width не менять?
         custom_range_mass_accuracy = [shift-2*sigma, shift+2*sigma]
         cnt, _, md_ar1, id_ar1 = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold)
@@ -359,6 +378,7 @@ class Fasta_manipulations :
         random.shuffle(prots)
         with open(path_to_out_fasta, 'w') as f :
             fasta.write(prots, output=f)
+        return 0
                            
     def get_matches(self, 
                     df1:pd.DataFrame,
@@ -427,7 +447,7 @@ class Fasta_manipulations :
 
 
 def noisygaus(x, a, x0, sigma, b):
-            return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + b
+    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + b
 
 
 def prepare_df(feature_tsv_path:str, charge_range:tuple=(2, 3), nIsotopes:int=3, mz_step:float=0.004) :
@@ -574,11 +594,11 @@ def call_ThermoRawFileParser(path_to_mono:str, path_to_parser:str, raw_file:str,
     return exitscore
 
 
-def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, path_to_deeplc:str='', cleavage_rule:str='', decoy_prefix:str='', str_of_other_args:str='') :
+def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, outdir:str='', cleavage_rule:str='', decoy_prefix:str='', str_of_other_args:str='') :
     wrong_add_args = ['-d', '-deeplc', 
                       '-e', '-ad', 
                       '-prefix', '-ml',
-                      '-ts', 
+                      '-ts', '-o'
                      ]
     if str_of_other_args :
         for wrong_add_arg in wrong_add_args :
@@ -589,13 +609,60 @@ def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, pat
         other_args = [x.strip() for x in str_of_other_args.split(' ')]
     else :
         other_args = []
-    other_args = ['-d', fasta_path, '-e', cleavage_rule, '-prefix', decoy_prefix, '-ad', '1', '-deeplc', '1', '-ml', '1', '-ts', '2'] + other_args
+    other_args = ['-o', outdir, '-d', fasta_path, '-e', cleavage_rule, '-prefix', decoy_prefix, '-ad', '1', '-deeplc', '1', '-ml', '1', '-ts', '2'] + other_args
     final_args = [path_to_ms1searchpy, feat_path, ] + other_args
     final_args = list(filter(lambda x: False if x=='' else True, final_args))
+    logger.debug(final_args)
     process = subprocess.Popen(final_args,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT)
     with process.stdout:
+        log_subprocess_output(process.stdout)
+    exitscore = process.wait()
+    return exitscore            
+            
+def call_ms1groups(path_to_ms1searchpy:str, PFM_ML:str, fasta_path:str, out:str='', group:str='genus', fdr:float=5, nproc:int=4, decoy_prefix:str='',) :
+    
+    other_args = ['-d', fasta_path, 
+                  '-prefix', decoy_prefix, 
+                  '-fdr', str(fdr), 
+                  '-out', out, 
+                  '-groups', group, 
+                  '-nproc', str(nproc)]
+    final_args = [path_to_ms1searchpy, PFM_ML, ] + other_args
+    final_args = list(filter(lambda x: False if x=='' else True, final_args))
+    logger.debug(final_args)
+    process = subprocess.Popen(final_args,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
+    with process.stdout :
+        log_subprocess_output(process.stdout)
+    exitscore = process.wait()
+    return exitscore
+
+def call_DirectMS1quantmulti(path_to_ms1searchpy:str, pdir:str, fasta_path:str, samples:str, 
+                             out:str='DQmulti', 
+                             out_folder:str='',
+                             pep_min_non_missing_samples:float=0.5, 
+                             min_signif_for_pept:int=1, 
+                             decoy_prefix:str='DECOY_',
+                            ) :
+    other_args = ['-d', fasta_path,
+                  '-pdir', pdir,
+                  '-samples', samples,
+                  '-prefix', decoy_prefix, 
+                  '-pep_min_non_missing_samples', str(pep_min_non_missing_samples), 
+                  '-min_signif_for_pept', str(min_signif_for_pept),
+                  '-out', out,
+                  '-out_folder', out_folder,
+                  ]
+    final_args = [path_to_ms1searchpy, ] + other_args
+    final_args = list(filter(lambda x: False if x=='' else True, final_args))
+    logger.debug(final_args)
+    process = subprocess.Popen(final_args,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
+    with process.stdout :
         log_subprocess_output(process.stdout)
     exitscore = process.wait()
     return exitscore
@@ -603,15 +670,15 @@ def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, pat
 
 def feature_generation(mzml_paths:dict, feature_folder:str, path_to_fd:str='', str_of_other_args:str='') :
     for sample, mzml_path in mzml_paths.items() :
-        outpath = path.join(feature_folder, path.basename(mzml_path).replace('.mzML', '_features.tsv') )
-        print(path_to_fd, mzml_path, outpath, str_of_other_args)
+        outpath = path.join(feature_folder, '.'.join([path.basename(mzml_path).rsplit('.', maxsplit=1)[0], 'features.tsv']) )
+        # logger.debug(path_to_fd, mzml_path, outpath, str_of_other_args)
         call_Biosaur2(path_to_fd, mzml_path, outpath, str_of_other_args=str_of_other_args)
             
 
 def mzml_generation(raw_paths:dict, mzml_folder:str, path_to_mono:str='', path_to_parser:str='', str_of_other_args:str='') :
     for sample, raw_path in raw_paths.items() :
         outdir = mzml_folder
-        print(path_to_mono, path_to_parser, raw_path, outdir, str_of_other_args)
+        # logger.debug(path_to_mono, path_to_parser, raw_path, outdir, str_of_other_args)
         call_ThermoRawFileParser(path_to_mono, path_to_parser, raw_path, outdir, str_of_other_args=str_of_other_args)
 
 
@@ -620,361 +687,120 @@ def log_subprocess_output(pipe):
         logger.info('From subprocess: %s', line.decode(sys.stdout.encoding).rstrip('\n'))
         
 
-# def noisygaus(x, a, x0, sigma, b) :
-#     return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + b
+def unite_fasta(identification_table:str, out_fasta:str, uniprot_folder:str, threshold:float=0.02, uniprot_suf:str='_un', sep='\t') :
+    group = identification_table.rsplit('_')[-1].split('.')[0]
+    id_df = pd.read_csv(identification_table, sep=sep)
+    exclude = ['name', 'group', 'taxid', 'include in combined fasta']
+    samples = [col for col in id_df.columns if not col in exclude]
     
+    needed_group_taxids = set()
+    for sample in samples :
+        id_df[sample] = id_df[sample]/id_df[sample].sum()
+        t = set(id_df[ id_df[sample] > threshold ]['taxid'].values)
+        needed_group_taxids.update(t)
     
-# def optimize_md(md_ar2:np.ndarray, bin_width=0.1) :
-#     bbins = np.arange(np.min(md_ar2), np.max(md_ar2), bin_width)
-#     H2, b2 = np.histogram(md_ar2, bins=bbins)
-#     m, mi, s = np.max(H2), b2[np.argmax(H2)], (np.max(md_ar2) - np.min(md_ar2))/6
-#     noise = np.min(H2)
-#     logger.debug('p0: {}', [m, mi, s, noise])
-#     popt, pcov = curve_fit(noisygaus, b2[1:], H2, p0=[m, mi, s, noise])
-#     shift, sigma = popt[1], abs(popt[2])
-#     logger.debug('Optimized mass shift and sigma: {}, {}', shift, sigma)
-#     return shift, sigma
+    needed_taxids = set()
+    for sample in samples :
+        id_df_ox = pd.read_csv(identification_table.replace(group, 'OX'), sep=sep)
+        t = list(id_df_ox['taxid'].values)
+        for i in t :
+            lineage = NCBITaxa().get_lineage(i)
+            if any( [group_taxid in lineage for group_taxid in needed_group_taxids] ) :
+                needed_taxids.update([i])
 
-
-# def get_top_species_names(cnt:dict, 
-#                           spec_map_id_reversed:dict, 
-#                           len_uniprot:dict, 
-#                           exclude_names:set, 
-#                           number_of_top_proteins:int=15, 
-#                           max_len_uniprot:int=220000
-#                          ) :
-#     top_species_names = set()
-#     for k, v in cnt.most_common():
-#         if len(top_species_names) < number_of_top_proteins:
-#             k_orig = spec_map_id_reversed[k]
-#             if len_uniprot[int(k_orig)] < max_len_uniprot :
-#                 if not int(k_orig) in exclude_names: 
-#                     top_species_names.add(k_orig) # OR k_orig???
-#                     orig_name = ncbi.get_taxid_translator([k_orig,])[int(k_orig)]
-#                     logger.debug(k, k_orig, orig_name, v)
-#     return top_species_names
-
-
-# def write_top_species_fasta(top_species_names:set, 
-#                             path_to_fasta_dir_sprot:str, 
-#                             path_to_fasta_dir_uniprot:str, 
-#                             outfasta_path:str, 
-#                             out_strain_statistics_path:str=''
-#                            ) :
-#     prots = []
-#     report = pd.DataFrame()
-#     for leader in top_species_names :
-#         SP = 0
-#         UN = 0
-
-#         if str(leader)+'.fasta' in listdir(path_to_fasta_dir_sprot):
-#             for p in fasta.read(path.join(path_to_fasta_dir_sprot, str(leader)+'_sp.fasta')):
-#                 SP+=1
-#         for p in fasta.read(path.join(path_to_fasta_dir_uniprot, str(leader)+'.fasta')):
-#             prots.append(p)
-#             UN+=1
-#         report = pd.concat([report, pd.DataFrame.from_dict({'ID':[leader],
-#                                                            'Sprot':[SP],
-#                                                            'Uniprot':[UN]})])
-
-#     if out_strain_statistics_path :
-#         report.to_csv(out_strain_statistics_path, index=False)
-#     random.shuffle(prots)
-#     with open(out_strain_statistics_path, 'w') as f :
-#         fasta.write(prots, output=f)
-#     return 0
-
-
-# def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, cleavage_rule:str='', decoy_prefix:str='') :
-#     wrong_add_args = ['-d', '-deeplc', 
-#                       '-e', '-ad', 
-#                       '-prefix', '-ml',
-#                       '-ts', 
-#                      ]
-#     if str_of_other_args :
-#         for wrong_add_arg in wrong_add_args :
-#             if str_of_other_args.find(wrong_add_arg)>=0 :
-#                 msg = 'Ignoring {} parameter from additional args to ms1searchpy'.format(wrong_add_arg)
-#                 logger.info(msg)
-#                 str_of_other_args = str_of_other_args.split(wrong_add_arg)[0] + ' '.join(str_of_other_args.split(wrong_add_arg)[-1].strip().split()[1:])
-#         other_args = [x.strip() for x in str_of_other_args.split(' ')]
-#     else :
-#         other_args = []
-#     other_args = ['-d', fasta_path, '-e', cleavage_rule, '-prefix', decoy_prefix, '-ad', 1, '-deeplc', 1, '-ml', 1, '-ts', 2] + other_args
-#     final_args = [path_to_ms1searchpy, feat_path, ] + other_args
-#     final_args = list(filter(lambda x: False if x=='' else True, final_args))
-#     process = subprocess.Popen(final_args,
-#                                stdout=subprocess.PIPE,
-#                                stderr=subprocess.STDOUT)
-#     with process.stdout:
-#         log_subprocess_output(process.stdout)
-#     exitscore = process.wait()
-#     return exitscore
-
-
-# def parse_fasta_for_organisms(path_to_uniprot:str, path_to_uniprot_dbs:str, path_to_swissprot_dbs:str) :
-#     ###
-#     # Описание!!!
-#     ###
-#     uniprot_taxid_set = set()
-#     swissprot_taxid_set = set()
-#     for p in fasta.read(path_to_uniprot):
-#         spec_i = p[0].split('OX=')[-1].split(' ')[0]
-#         fasta.write([(p[0], p[1])], output = path.join(path_to_uniprot_dbs, '{}.fasta'.format(spec_i)),
-#                         file_mode = 'a')
-#         if spec_i not in uniprot_taxid_set:
-#             uniprot_taxid_set.update([int(spec_i)])
-
-#         if p[0].startswith('sp'):
-#             # fasta.write([(p[0], p[1])], output = path.join(path_to_swissprot_dbs, '{}.fasta'.format(spec_i)),
-#             fasta.write([(p[0], p[1])], output = path.join(path_to_swissprot_dbs, '{}_sp.fasta'.format(spec_i)),
-#                             file_mode = 'a')
-#             if spec_i not in swissprot_taxid_set:
-#                 swissprot_taxid_set.update([int(spec_i)])
+    with open(out_fasta, mode='w') as fout :
+        for tid in needed_taxids :
+            f = fasta.read(path.join(uniprot_folder, str(tid)+uniprot_suf+'.fasta'))
+            fasta.write(f, output=fout)
+            
+            
+def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascending:bool=True) : #save:bool=False) :
+    # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
+    df = pd.read_csv(path_to_file, sep = '\t')
+    excl = ['group', 'taxid', 'name', 'include in the combined fasta']
+    file_cols = [col for col in df.columns if not col in excl]
+    for file in file_cols :
+        df = df.sort_values(by = file, ascending = ascending)
+        y = df[file].values
+        x = df['name'].values
+        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+        colors = ['#4472c4ff','#133054ff']
+        bars = ax.barh(x, y, color = colors)
+        ax.bar_label(bars, padding = 5)
+        ax.grid(axis='x')
+        max_y = round(max(y)+100, -2)
+        ax.set_xlim((0, max_y))
+        plt.xticks(fontsize = 14)
+        plt.xlabel('# proteins', fontweight='bold')
+        ax.set_title(file + ' ' + group)
+        if 'include in the combined fasta' in df.columns :
+            if ascending :
+                h = len(df) - df['include in the combined fasta'].sum() - 0.5
+            else :
+                h = df['include in the combined fasta'].sum() + 0.5
+            ax.text(max_y*0.3, h+0.05, 'border to include taxid in combined fasta')
+            ax.plot((0, max_y), (h, h) , color='r')
+        savepath = path.join(path.dirname(path_to_file), '_'.join([search, file, group])+'.png')
+        plt.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
         
-#     return uniprot_taxid_set, swissprot_taxid_set
-
-
-# def calc_lens_for_taxid_set(taxid_set:set, path_to_dbs:str, path_to_dump='', swissprot=False) :
-#     ###
-#     # Описание!!!
-#     ###
-#     taxid_lens_dict = {}
-#     for i in taxid_set :
-#         if swissprot :
-#             filename = '{}_sp.fasta'.format(i)
-#         else :
-#             filename = '{}.fasta'.format(i)
-#         file = path.join(path_to_dbs, filename)
-#         # logger.debug(file)
-
-#         n = sum(1 for _ in fasta.read(file))
-#         taxid_lens_dict[i] = n
+        
+def plot_identification_hist(path_to_file:str, search:str='blind' ) : #save:bool=False) :
+    # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
+    df = pd.read_csv(path_to_file, sep = '\t')
+    excl = ['group', 'taxid', 'name', 'include in the combined fasta']
+    file_cols = [col for col in df.columns if not col in excl]
+    x = np.arange(len(file_cols))
+    y = [df[file].sum() for file in file_cols]
     
-#     if path_to_dump :
-#         with open(path_to_dump, 'wb') as f :
-#             pickle.dump(
-#                 taxid_lens_dict, 
-#                 f, 
-#                 protocol=pickle.HIGHEST_PROTOCOL
-#             )
-#     return taxid_lens_dict
-
-
-# def get_descendents_dict(taxid_set:set, allowed_ranks:set, path_to_species_descendants='') :
-#     ###
-#     # Описание!!!
-#     ###
-#     species_descendants = defaultdict(set)
-#     used = set()
-
-#     for i in taxid_set:
-#         if i not in used:
-#             rank = NCBITaxa().get_rank([i])
-#             if rank:
-#                 if rank[i] == 'species':
-#                     descendants = set(NCBITaxa().get_descendant_taxa(i) + [i])
-#     #                 descendants = [j for j in descendants if j in taxid_set]
-#                     species_descendants[i].update(descendants.intersection(taxid_set))
-#                     used.update(species_descendants[i])
-#                 elif rank[i] in allowed_ranks:
-#                     lineage = NCBITaxa().get_lineage(i)
-#                     ranks = NCBITaxa().get_rank(lineage)
-#                     species = [k for k in ranks.keys() if ranks[k] == 'species'][0]
-#                     descendants = set(NCBITaxa().get_descendant_taxa(species) + [species])
-#     #                 descendants = [j for j in descendants if j in taxid_set]
-#                     species_descendants[species].update(descendants.intersection(taxid_set))
-#                     species_descendants[species].add(i)
-#                     used.update(species_descendants[species])
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    colors = ['#4472c4ff','#133054ff']
+    ax.bar(x, y, color = colors)
+    # ax.bar_label(bars, padding = 5)
+    # ax.grid(axis='x')
+    max_y = round(max(y)+100, -2)
+    # ax.set_xlim((0, max_y))
+    ax.set_xticks(x, labels=file_cols, fontsize = 14, rotation=30)
+    plt.ylabel('# proteins', fontweight='bold')
+    ax.set_title('Identified proteins per file in {} search'.format(search))
+    savepath = path.join(path.dirname(path_to_file), '_'.join([search, 'identified_proteins'])+'.png')
+    plt.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
     
-#     if path_to_species_descendants :
-#         with open(path_to_species_descendants, 'wb') as f :
-#             pickle.dump(
-#                 species_descendants, 
-#                 f, 
-#                 protocol=pickle.HIGHEST_PROTOCOL
-#             )
-#     return species_descendants
-
-
-# def get_leaders(species_descendants:dict, sprot_taxid_set:set, len_fasta_uniprot:dict, len_fasta_sprot:dict, path_to_leaders_uniprot='', path_to_leaders_sprot='') :
-#     ###
-#     # Описание!!!
-#     ###
-#     species_leader_sprot = {}
-#     species_leader_uniprot = {}
-#     for i in species_descendants.keys() :
-#         strains = species_descendants[i]
-#         strains_sp = [i for i in strains if i in sprot_taxid_set]
-#         lens = {j:len_fasta_uniprot[j] for j in strains}
-#         lens_sp = {j:len_fasta_sprot[j] for j in strains_sp}
-#         if len(lens) != 0 :
-#             lead = max(lens.items(), key=operator.itemgetter(1))[0]
-#             species_leader_uniprot[i] = lead
-#         if len(lens_sp) != 0 :
-#             lead = max(lens_sp.items(), key=operator.itemgetter(1))[0]
-#             species_leader_sprot[i] = lead
-            
-#     if path_to_leaders_uniprot :
-#         with open(path_to_leaders_uniprot, 'wb') as f :
-#             pickle.dump(
-#                 species_leader_uniprot, 
-#                 f, 
-#                 protocol=pickle.HIGHEST_PROTOCOL
-#             )
-#     if path_to_leaders_sprot :
-#         with open(path_to_leaders_sprot, 'wb') as f :
-#             pickle.dump(
-#                 species_leader_sprot, 
-#                 f, 
-#                 protocol=pickle.HIGHEST_PROTOCOL
-#             )
-#     return species_leader_uniprot, species_leader_sprot
-
-
-# def exclude_wrong(leaders:set, path_to_exclude_names='') :
-#     ###
-#     # Описание!!!
-#     ###
-#     i = 0
-#     exclude_names = set()
-#     # leaders = set(species_leader_sprot.values()).union(set(species_leader_uniprot.values()))
-
-#     for k in leaders:
-#         name = list(NCBITaxa().get_taxid_translator([k]).values())[0]
-#         if 'sp.' in name:
-#             if name.split(' ')[1] == 'sp.':
-#                 exclude_names.update([k])
-#                 i+=1
-#         if name.startswith('uncultured'):
-#             exclude_names.update([k])
-
-#     if path_to_exclude_names :
-#         with open(path_to_exclude_names, 'wb') as f :
-#             pickle.dump(
-#                 exclude_names, 
-#                 f, 
-#                 protocol=pickle.HIGHEST_PROTOCOL
-#             )
-#     return exclude_names
-                           
-                           
-# def write_10_perc_fasta(outfasta_path:str='', 
-#                         path_to_fasta_dir_uniprot:str='', 
-#                         len_uniprot:dict={}, 
-#                         len_sprot:dict={}, 
-#                         species_leader_sprot:set=set(), 
-#                         species_leader_uniprot:set=set(), 
-#                         treshold:int=200
-#                        ) :
-#     random_dict = {}
-#     for k in len_uniprot.keys():
-#         random_dict[k] = 2000 / len_uniprot[k]
-
-#     outf = open(outfasta_path, 'w')
-#     outf.close()
-
-#     leaders = set(species_leader_sprot.values()).union(set(species_leader_uniprot.values()))
-#     for f in leaders:
-#         prots = [] 
-#         if f in species_leader_sprot.values():
-#             n_prot = len_sprot[f]
-#         else: 
-#             n_prot = len_uniprot[f]
-#         if n_prot >= treshold :
-#             for p in fasta.read(path.join(path_to_fasta_dir_uniprot, str(f) + '.fasta')):
-#                 if p[0][:2] == 'sp' or random_dict[f] >= random.random():
-#                     prots.append(p)
-#             with open(outfasta_path, 'a') as f :
-#                 fasta.write(prots, output=f)
-#     return 0
-            
-            
-# def prepare_protein_set(fasta_path:str, 
-#                         decoy_prefix:str='DECOY_', 
-#                         cleave_rule:str='[RK]', 
-#                         min_length:int=9, 
-#                         missed_cleavages:int=0, 
-#                         aa_mass:dict=copy(mass.std_aa_mass),
-#                         path_to_output_prot_set:str='', 
-#                         path_to_output_specmap_id:str='', 
-#                         path_to_output_cnt_to_spec:str='',
-#                         rewrite=True
-#                        ) :
-#     # Add fixed modifications here
-#     # aa_mass = copy(mass.std_aa_mass)
-#     # aa_mass['C'] += 57.021464
-#     # aa_mass
     
-#     if path.exists(path_to_output_prot_set) and path.exists(path_to_output_specmap_id) and path.exists(path_to_output_cnt_to_spec) and (not rewrite) :
-#         with open(path_to_output_prot_set, 'wb') as f :
-#             prot_sets = pickle.load(f)
-#         with open(path_to_output_spec_map_id, 'wb') as f :
-#             spec_map_id = pickle.load(f)
-#         with open(path_to_output_cnt_to_spec, 'wb') as f :
-#             cnt_to_spec = pickle.load(f)
-#         return prot_sets, spec_map_id, cnt_to_spec
-    
-#     else :
-#         prot_sets = defaultdict(list)
-#         spec_map_id = dict()
-#         cnt_to_spec = list()
-#         spec_map_id_max = 0
+def read_cfg(file, category) :
+    with open(file, 'r') as ff :
+        f = ff.read()
 
-#         cnt = 0
-#         for p in fasta.read(fasta_path):   
+    start = int(f.find('['+category+']')) + 2 + len(category)
+    end = min(f.find('\n\n', start), len(f))
 
-#             if decoy_prefix not in p[0]:
-#                 cnt += 1
-#                 if cnt % 1000000 == 0:
-#                     logger.debug('Proteins scored: '+str(cnt))
+    cfg_string = f[start:end]
+    while '#' in cfg_string :
+        l = cfg_string.find('#')
+        r = cfg_string.find('\n', l) + 1
+        cfg_string = cfg_string[:l] + cfg_string[r:]
 
-#                 spec = p[0].split('OX=')[-1].split(' ')[0]
-#                 if spec not in spec_map_id:
-#                     spec_map_id_max += 1
-#                     spec_map_id[spec] = spec_map_id_max
+    lst_of_strings = cfg_string.lstrip().split('\n')
+    final = []
+    keys = []
+    for el in lst_of_strings :
+        if el :
+            key_value = el.split(' = ')
+            if len(key_value) > 1 :
+                key = key_value[0]
+                value = key_value[1]
+            else :
+                key = key_value[0]
+                value = None
+            keys.append(key)
+            key = '-' + key
+            final.append(key)
 
-#                 spec_id = spec_map_id[spec]
-#                 cnt_to_spec.append(spec_id)
+            if value :
+                if value.startswith('\"') or value.startswith("\'") :
+                    final.append(value)
+                else :
+                    vals = value.split()
+                    for v in vals :
+                        final.append(v)
+    return final, keys
 
-#                 peptides = parser.cleave(p[1], cleave_rule, missed_cleavages, min_length=min_length)
-#                 mz_list = []
-
-#                 dont_use_fast_valid = parser.fast_valid(p[1])
-#                 for pep in peptides:
-#                     plen = len(pep) 
-#                     if plen <= 15:
-#                         if dont_use_fast_valid or parser.fast_valid(pep) :
-#                             mz_list.append(cmass.fast_mass(pep, aa_mass=aa_mass))
-#                 for mz in set(mz_list):
-#                     prot_sets[mz].append(cnt)
-
-#         if path_to_output_prot_set :
-#             with open(path_to_output_prot_set, 'wb') as f :
-#                 pickle.dump(prot_sets, 
-#                             f, protocol=pickle.HIGHEST_PROTOCOL)
-
-#         if path_to_output_specmap_id :
-#             with open(path_to_output_specmap_id, 'wb') as f :
-#                 pickle.dump(spec_map_id, 
-#                             f, protocol=pickle.HIGHEST_PROTOCOL)
-
-#         if path_to_output_cnt_to_spec :
-#             with open(path_to_output_cnt_to_spec, 'wb') as f :
-#                 pickle.dump(cnt_to_spec, 
-#                             f, protocol=pickle.HIGHEST_PROTOCOL)
-
-#         return prot_sets, spec_map_id, cnt_to_spec
-
-
-# def mz_map(
-#     prot_sets:dict
-#     ) :
-#     protsN = Counter()
-#     accurate_mz_map = defaultdict(list)
-
-#     for v, prots in prot_sets.items():
-#         v_int = int(v/mz_step)
-#         accurate_mz_map[v_int].append(v)
-#         protsN.update(prots)
-#     return protsN, accurate_mz_map
