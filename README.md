@@ -37,6 +37,8 @@ Each category of config file is independent set of parameters and only one is re
 #### Modes
 `MetaDirectMS1` has `-mode` option that allows to run algorithm starting with every stage, rewriting results or continuing previous analysis. However, generally, to rewrite starting with `3) Blind search` it needs intermediate results from both previous stages, to unite protein database in `4) Precise search` individual `.fasta` files are needed and so on.
 
+So if in any case analysis stopped before sucessfull ending, `-mode 0` option with exact same inputs and output folder should help to continue workflow from last completed stage. By default `-mode 1` is using to rewrite any old results in output folder.
+
 ### Full cmd options description
 <...>
 ## Contacts
