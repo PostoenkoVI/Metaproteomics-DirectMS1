@@ -2,6 +2,7 @@ import argparse
 import sys
 from os import path, makedirs
 import logging
+import datetime
 from . import utils, workflow
 
 logger = logging.getLogger()
@@ -15,13 +16,13 @@ def run():
         formatter_class = argparse.ArgumentDefaultsHelpFormatter, fromfile_prefix_chars='@')
 
     argparser.add_argument('-logs', nargs='?', help='level of logging, (DEBUG, INFO, WARNING, ERROR, CRITICAL)', type=str, default='INFO', const='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'NOTSET', 'debug', 'info', 'warning', 'error', 'critical', 'nonset'])
-    argparser.add_argument('-log_path', nargs='?', help='path to logging file', type=str, default='./logs.txt', const='./logs.txt')
+    argparser.add_argument('-log_path', nargs='?', help='Path to logging file. By default it is in the outdir.', type=str, default='', const='')
     # parser.add_argument('-example_cfg', nargs='?', help='Path to create example config .ini file or not if not stated', type=str, default='', const='')
     argparser.add_argument('-full_uniprot_fasta', nargs='?', help='Path to full bacterial SwissProt+TrEMBL .fasta file to search organisms in', type=str, default='', )
     argparser.add_argument('-uniprot_folder', nargs='?', help='Path to folder to store .fasta files splited by taxonomic identifiers from uniprot', type=str, default='', )
     argparser.add_argument('-sprot_folder', nargs='?', help='Path to folder to store .fasta files splited by taxonomic identifiers from swissprot', type=str, default='', )
 
-    argparser.add_argument('-input_files', nargs='*', help='input .raw, .mzML or features.tsv files', type=str, default='',)
+    argparser.add_argument('-input_files', nargs='?', help='input .raw, .mzML or features.tsv files', type=str, default='',)
     argparser.add_argument('-raw_folder', nargs='?', help='Input directory with .raw files', type=str, default='', const='')
     argparser.add_argument('-outdir', nargs='?', help='Output directory', type=str, default='', const='')
     argparser.add_argument('-mzml_folder', nargs='?', help='Directory to search or to store .mzML files after convertation', type=str, default='', const='')
@@ -94,11 +95,29 @@ def run():
     ch.setLevel(numeric_level)
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-
+    
+    args['outdir'] = workflow.get_outdir(args)
+    
     if args['log_path'] :
-        args['log_path'] = path.abspath(path.normpath(args['log_path']))
-        log_directory = path.dirname(args['log_path'])
+        log_path = path.abspath(path.normpath(args['log_path']))
+        log_directory = path.dirname(log_path)
         makedirs(log_directory, exist_ok=True)
+        fh = logging.FileHandler(log_path, mode='w', encoding='utf-8')
+        fh.setLevel(numeric_level)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+    elif args['outdir'] :
+        makedirs(args['outdir'], exist_ok=True)
+        date = str(datetime.datetime.today()).split()[0].replace('-', '_')
+        fname = '_'.join(['logs', date]) + '.log'
+        log_path = path.join(args['outdir'], fname)
+        fh = logging.FileHandler(log_path, mode='w', encoding='utf-8')
+        fh.setLevel(numeric_level)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+    else :
+        fname = 'logs.log'
+        log_path = path.join(path.normpath('./'), fname)
         fh = logging.FileHandler(args['log_path'], mode='w', encoding='utf-8')
         fh.setLevel(numeric_level)
         fh.setFormatter(formatter)
@@ -106,7 +125,7 @@ def run():
 
     logging.getLogger('matplotlib').setLevel(logging.ERROR)
 
-    logger.info('MetaDirectMS1 started')
+    logger.info('MetaDirectMS1 started.')
 
     # if args['example_cfg'] :
     #     p = os.path.abspath(os.path.normpath(args['example_cfg']))
@@ -119,10 +138,19 @@ def run():
     #     else :
     #         logger.warning('Invalid path for example cfg creation. Directory does not exist')
     #         return 1
-
-    workflow.process_files(args)
-    
-    logger.info('MetaDirectMS1 has completed the workflow.')
+    try :
+        exitscore = workflow.process_files(args)
+        logger.info('Totally occured %s warnings, %s errors, %s critical errors.', counter['WARNING'], counter['ERROR'], counter['CRITICAL'])
+    except :
+        counter = workflow.log_parsing(log_path, stage_id='All')
+        logger.warning('Totally occured %s warnings, %s errors, %s critical errors.', counter['WARNING'], counter['ERROR'], counter['CRITICAL'])
+        exitscore = 1
+        
+    if exitscore == 0 :
+        logger.debug(exitscore)
+        logger.info('MetaDirectMS1 has completed the workflow.')
+    else :
+        logger.critical('Terminating with exit score %s', exitscore)
 
 if __name__ == '__main__':
     run()

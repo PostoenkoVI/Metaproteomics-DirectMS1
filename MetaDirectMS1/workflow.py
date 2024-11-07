@@ -3,12 +3,70 @@ import pickle
 import logging
 import pandas as pd
 from ete3 import NCBITaxa
+import datetime
 from .utils import log_subprocess_output, feature_generation, mzml_generation, call_ms1searchpy, call_DirectMS1quantmulti, call_ms1groups, call_ThermoRawFileParser, call_Biosaur2, get_aa_mass_with_fixed_mods, load, save, optimize_md, calc_sf_all, prepare_df, noisygaus, plot_identification_hist, plot_tax_barplot, unite_fasta, Fasta_manipulations
 
 logger = logging.getLogger(__name__)
 
+
+def log_parsing(log_path:str, stage_sep:str='Stage', stage_id:str='') :
+    lines = []
+    with open(log_path, mode='r') as logfile :
+        if stage_id == 'All' :
+            for line in logfile.readlines() :
+                lines.append(line)
+        else :
+            pattern1 = stage_sep + ' ' + stage_id
+            pattern2 = stage_sep
+            flag = False
+            for line in logfile.readlines() :
+                if pattern1 in line :
+                    # print(line)
+                    flag = True
+                elif pattern2 in line and flag :
+                    # print(line)
+                    flag = False
+                    break
+                if flag :
+                    lines.append(line)
+
+    counter = {'WARNING':0, 'ERROR':0, 'CRITICAL':0}
+    for line in lines :
+        for key in counter.keys() :
+            if key in line :
+                counter[key] += 1
+    return counter
+
+
+def get_outdir(args) :
+    outdir = args['outdir']
+    if not outdir :
+        date = str(datetime.datetime.today()).split()[0].replace('-', '_')
+        drname = '_'.join(['metadirectms1', date])
+        
+        if args['input_files'] :
+            f0 = args['input_files'].split(' ')[0]
+            indir = path.dirname(f0)
+        elif args['feature_folder'] :
+            indir = args['feature_folder']
+        elif args['mzml_folder'] :
+            indir = args['mzml_folder']
+        elif args['raw_folder'] :
+            indir = args['raw_folder']
+        else :
+            indir = ''
+        
+        if indir :
+            return path.join(indir, drname)
+        else :
+            return ''
+    else :
+        return outdir
+
+
 def initialisation(args) :
     all_paths = dict()
+    all_paths['outdir'] = args['outdir']
     rewrite = dict()
     # input
     input_type = False
@@ -72,16 +130,7 @@ def initialisation(args) :
         input_dir = path.dirname(input_files[0])
     else :
         logger.critical('No input files added. Either input files should be added through "-input_files" or at least one of the folders ("raw_folder", "mzml_folder", "feature_folder") should contain them.')
-        return {}, {}
-            
-    if args['outdir'] :
-        all_paths['outdir'] = args['outdir']
-        makedirs(all_paths['outdir'], exist_ok=True)
-    else :
-        date = str(datetime.datetime.today()).split()[0].replace('-', '_')
-        drname = '_'.join(['metadirectms1', date])
-        all_paths['outdir'] = path.join(input_dir, drname)
-        logger.warning('Path to output directory is not specified. Using input files directory instead.')
+        return {}, {}, {}
     
     input_type_dct = {
         'feature' : 2,
@@ -135,10 +184,11 @@ def initialisation(args) :
         makedirs(all_paths['feature_folder'], exist_ok=True)
     
     # structure
-    if args['full_uniprot_fasta'] and path.exists(path.abspath(args['full_uniprot_fasta'])) :
+    if args['full_uniprot_fasta'] and path.isfile(path.abspath(args['full_uniprot_fasta'])) :
         all_paths['full_uniprot_fasta'] = args['full_uniprot_fasta']
     else :
-        logger.warning('Path to full uniprot fasta is not stated or does not exists.')
+        all_paths['full_uniprot_fasta'] = ''
+        logger.warning('Path to full uniprot fasta is not stated or does not exists. It is critical error if database parsing stage wasn\'t completed earlier.')
     
     if args['db_parsing_folder'] :
         all_paths['db_parsing_folder'] = path.abspath(all_paths['db_parsing_folder'])
@@ -196,9 +246,8 @@ def initialisation(args) :
     if path.isfile(args['sample_file']) :
         all_paths['sample_file'] = path.abspath(args['sample_file'])
     else :
-        logger.warning('Sample file does not exists: %s', args['sample_file'])
+        logger.warning('Sample file does not exists: %s\tSearching in default location: %s', args['sample_file'], path.join(all_paths['quantitation'], 'sample_file.tsv'))
         all_paths['sample_file'] = path.join(all_paths['quantitation'], 'sample_file.tsv')
-        logger.warning('Searching in default location: %s', all_paths['sample_file'])
     all_paths['uniprot_taxid_set'] = path.join(all_paths['temp_folder'], 'uniprot_taxid_set.pickle')
     all_paths['sprot_taxid_set'] = path.join(all_paths['temp_folder'], 'sprot_taxid_set.pickle')
     all_paths['len_fasta_uniprot'] = path.join(all_paths['temp_folder'], 'len_fasta_uniprot.pickle')
@@ -332,8 +381,10 @@ def initialisation(args) :
 def process_files(args) :
     
     all_paths, rewrite_dict, aa_mass = initialisation(args)
+    if not all_paths :
+        return 1
     logger.debug(all_paths)
-    # parse_uniprot()
+
     fmanip = Fasta_manipulations(all_paths, args)
     allowed_ranks = list(map(str.strip, args['allowed_ranks'].split(',') ) )
     if rewrite_dict['db_parsing']['taxid_set'] :
