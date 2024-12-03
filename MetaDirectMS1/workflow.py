@@ -110,7 +110,7 @@ def initialisation(args) :
                 folder = path.abspath(path.join(args['outdir'], 'features'))
                 input_files = [path.join(folder, input_file) for input_file in listdir(folder) if input_file.lower().endswith('features.tsv')]
                 if (len(input_files) == 0) :
-                    logger.info('No .tsv files found in %s', path.join(args['outdir'], 'features'))
+                    logger.info('No .features.tsv files found in %s', path.join(args['outdir'], 'features'))
             if (len(input_files) == 0) and path.isdir(path.join(args['outdir'], 'mzml')) :
                 input_type = 'mzml'
                 all_paths[input_type] = {}
@@ -163,9 +163,13 @@ def initialisation(args) :
         if t != input_type :
             all_paths[t] = {}
     for input_file in input_files :
-        sample = path.basename(input_file.strip()).rsplit('.', maxsplit=1)[0]
-        samples.append(sample)
-        all_paths[input_type][sample] = input_file.strip()
+        if input_type != 'feature' :
+            sample = path.basename(input_file.strip()).rsplit('.', maxsplit=1)[0]
+            samples.append(sample)
+        else :
+            sample = path.basename(input_file.strip()).rsplit('.', maxsplit=2)[0]
+            samples.append(sample)
+        all_paths[input_type][sample] = input_file.strip()        
     if input_type == 'feature' :
         for sample in samples :
             all_paths['raw'][sample] = ''
@@ -476,7 +480,7 @@ def process_files(args) :
                 logger.critical('Something went wrong during blind search for file %s', feature_path)
                 return 1
     
-    groups = list(set(['OX', args['taxid_group'] ]))
+    groups = list(set( ['OX', args['taxid_group'] ] ))
     
     if rewrite_dict['blind_search']['ms1search'] :
         for sample, feature_path in all_paths['feature'].items() :

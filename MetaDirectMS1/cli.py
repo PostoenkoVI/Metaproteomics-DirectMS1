@@ -42,7 +42,7 @@ def run():
     argparser.add_argument('-decoy_prefix', nargs='?', help='String added to the protein name to showcase that it is a decoy (default: DECOY)', type=str, default='DECOY', const='DECOY')
     argparser.add_argument('-sprot_suf', nargs='?', help='String added to the taxid of the organism\'s .fasta file to showcase swissprot database (default: _sp)', type=str, default='_sp', const='_sp')
     argparser.add_argument('-uniprot_suf', nargs='?', help='String added to the taxid of the organism\'s .fasta file to showcase uniprot database (default: _un)', type=str, default='_un', const='_un') 
-    argparser.add_argument('-min_pept_length', nargs='?', help='Minimal peptide lenght to use in cleaving 10% database, lowering the value is not recommended (default: 9)', type=int, default=9, const=9)
+    argparser.add_argument('-min_pept_length', nargs='?', help='Minimal peptide lenght to use in cleaving 10%% database, lowering the value is not recommended (default: 9)', type=int, default=9, const=9)
     argparser.add_argument('-missed_cleavages', nargs='?', help='Number of missed cleavages for cleaving peptide in both searches. (default: 0)', type=int, default=0, const=0)
     argparser.add_argument('-cleavage_rule', nargs='?', help='cleavage rule in quotes!. X!Tandem style for cleavage rules: "[RK]|{P}" for trypsin, "[X]|[D]" for asp-n or "[RK]|{P},[K]|[X]" for mix of trypsin and lys-c', default='[RK]|{P}', const='[RK]|{P}')
     # argparser.add_argument('-cmin', nargs='?', help='Min precursor charge', default=2, type=int, const=3)
@@ -52,7 +52,7 @@ def run():
     argparser.add_argument('-mass_accuracy', nargs='?', help='Mass accuracy in ppm for blind search. (default: 4)', default=4, type=float, const=4)
     argparser.add_argument('-mz_for_mass_accuracy', nargs='?', help='Approximate maximum m/z value to use with mass_accuracy. (default: 1000)', default=1000, type=float, const=1000)
     argparser.add_argument('-allowed_ranks', nargs='?', help='Allowed taxonomy categories between <...> and <...>, default="strain,subspecies,forma specialis,isolate,serotype,serogroup,no rank" ', type=str, default='strain,subspecies,forma specialis,isolate,serotype,serogroup,no rank', const='strain,subspecies,forma specialis,isolate,serotype,serogroup,no rank')
-    argparser.add_argument('-min_prot', nargs='?', help="Minimal number of proteins in leader's fasta to write in 10% organisms fasta. (default: 200)", default=200, type=float, const=200)
+    argparser.add_argument('-min_prot', nargs='?', help="Minimal number of proteins in leader's fasta to write in 10%% organisms fasta. (default: 200)", default=200, type=float, const=200)
     argparser.add_argument('-taxid_group', nargs='?', help="taxid level to filter organisms found in blind search, availible options: OX, genus, family, species. (default: OX)", default='OX', type=str, const='OX')
     argparser.add_argument('-taxid_presence_thr', nargs='?', help='Percentage threshold to filter taxid with low abundance in sample from united .fasta file for precise search', default=0.02, type=float, const=0.02)
     argparser.add_argument('-score_threshold', nargs='?', help='Minimal number of matched proteins in blind search to report taxid (default: 4)', default=4, type=float, const=4)
@@ -62,7 +62,7 @@ def run():
     argparser.add_argument('-mode', nargs='?', help='Mode for MetaDirectMS1 to work: 0 - try to continue existing analysis in selected outdir without rewriting anything, 1 - run all stages of analysis overwriting results in outdir, 2 - overwrite all stages except initial fasta parcing, 3 - overwrite all stages except initial fasta parcing and feature generation (start with blind search), 4 - overwrite precise search and following steps, 5 - overwrite quantitation', default=1, type=int, choices=[0, 1, 2, 3, 4, 5], const=1)
     ##############
     
-    console_config = vars(argparser.parse_args()) 
+    console_config = vars(argparser.parse_args())
     console_keys = [x[1:] for x in sys.argv if x.startswith('-')] 
     default_config = vars(argparser.parse_args([]))
     additional_config = {}
@@ -138,13 +138,19 @@ def run():
     #     else :
     #         logger.warning('Invalid path for example cfg creation. Directory does not exist')
     #         return 1
-    try :
+    
+    
+    if args['logs'].lower() == "DEBUG" :
+        try :
+            exitscore = workflow.process_files(args)
+            logger.info('Totally occured %s warnings, %s errors, %s critical errors.', counter['WARNING'], counter['ERROR'], counter['CRITICAL'])
+        except :
+            counter = workflow.log_parsing(log_path, stage_id='All')
+            logger.warning('Totally occured %s warnings, %s errors, %s critical errors.', counter['WARNING'], counter['ERROR'], counter['CRITICAL'])
+            exitscore = 1
+    else :
         exitscore = workflow.process_files(args)
         logger.info('Totally occured %s warnings, %s errors, %s critical errors.', counter['WARNING'], counter['ERROR'], counter['CRITICAL'])
-    except :
-        counter = workflow.log_parsing(log_path, stage_id='All')
-        logger.warning('Totally occured %s warnings, %s errors, %s critical errors.', counter['WARNING'], counter['ERROR'], counter['CRITICAL'])
-        exitscore = 1
         
     if exitscore == 0 :
         logger.debug(exitscore)

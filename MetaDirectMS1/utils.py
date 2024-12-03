@@ -9,6 +9,7 @@ from scipy.stats import binom
 from scipy.optimize import curve_fit
 from copy import copy, deepcopy
 from os import path, listdir
+
 import matplotlib.pyplot as plt
 import random
 import logging
@@ -716,6 +717,7 @@ def unite_fasta(identification_table:str, out_fasta:str, uniprot_folder:str, thr
             
 def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascending:bool=True) : #save:bool=False) :
     # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
+    plt.ioff()
     df = pd.read_csv(path_to_file, sep = '\t')
     excl = ['group', 'taxid', 'name', 'include in the combined fasta']
     file_cols = [col for col in df.columns if not col in excl]
@@ -730,8 +732,8 @@ def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascen
         ax.grid(axis='x')
         max_y = round(max(y)+100, -2)
         ax.set_xlim((0, max_y))
-        plt.xticks(fontsize = 14)
-        plt.xlabel('# proteins', fontweight='bold')
+        ax.set_xticks(fontsize = 14)
+        ax.set_xlabel('# proteins', fontweight='bold')
         ax.set_title(file + ' ' + group)
         if 'include in the combined fasta' in df.columns :
             if ascending :
@@ -741,11 +743,12 @@ def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascen
             ax.text(max_y*0.3, h+0.05, 'border to include taxid in combined fasta')
             ax.plot((0, max_y), (h, h) , color='r')
         savepath = path.join(path.dirname(path_to_file), '_'.join([search, file, group])+'.png')
-        plt.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
+        fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
         
         
 def plot_identification_hist(path_to_file:str, search:str='blind' ) : #save:bool=False) :
     # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
+    plt.ioff()
     df = pd.read_csv(path_to_file, sep = '\t')
     excl = ['group', 'taxid', 'name', 'include in the combined fasta']
     file_cols = [col for col in df.columns if not col in excl]
@@ -760,10 +763,10 @@ def plot_identification_hist(path_to_file:str, search:str='blind' ) : #save:bool
     max_y = round(max(y)+100, -2)
     # ax.set_xlim((0, max_y))
     ax.set_xticks(x, labels=file_cols, fontsize = 14, rotation=30)
-    plt.ylabel('# proteins', fontweight='bold')
+    ax.set_ylabel('# proteins', fontweight='bold')
     ax.set_title('Identified proteins per file in {} search'.format(search))
     savepath = path.join(path.dirname(path_to_file), '_'.join([search, 'identified_proteins'])+'.png')
-    plt.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
+    fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
     
     
 def read_cfg(file, category) :
