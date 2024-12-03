@@ -22,7 +22,7 @@ def run():
     argparser.add_argument('-uniprot_folder', nargs='?', help='Path to folder to store .fasta files splited by taxonomic identifiers from uniprot', type=str, default='', )
     argparser.add_argument('-sprot_folder', nargs='?', help='Path to folder to store .fasta files splited by taxonomic identifiers from swissprot', type=str, default='', )
 
-    argparser.add_argument('-input_files', nargs='?', help='input .raw, .mzML or features.tsv files', type=str, default='',)
+    argparser.add_argument('-input_files', nargs='*', help='input .raw, .mzML or features.tsv files', type=str, default='',)
     argparser.add_argument('-raw_folder', nargs='?', help='Input directory with .raw files', type=str, default='', const='')
     argparser.add_argument('-outdir', nargs='?', help='Output directory', type=str, default='', const='')
     argparser.add_argument('-mzml_folder', nargs='?', help='Directory to search or to store .mzML files after convertation', type=str, default='', const='')

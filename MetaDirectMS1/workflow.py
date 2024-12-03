@@ -74,11 +74,15 @@ def initialisation(args) :
     input_dir = ''
     samples = []
     if args['input_files'] :
-        input_type = args['input_files'].split(' ')[0].split('.')[-1].lower()
+        
+        if type(args['input_files']) == str :
+            input_files = args['input_files'].split(' ')
+        elif type(args['input_files']) == list :
+            input_files = args['input_files']
+        input_type = input_files[0].split('.')[-1].lower()
         if input_type == 'tsv' :
             input_type = 'feature'
         all_paths[input_type] = {}
-        input_files = args['input_files'].split(' ')
     else :
         if args['feature_folder'] and path.exists(path.abspath(args['feature_folder'])) :
             logger.debug('Searching for features')
@@ -337,11 +341,13 @@ def initialisation(args) :
     stages = ['db_parsing', 'blind_search', 'precise_search', 'quantitation', 'input']
     if args['mode'] == 0 :
         for key in stages :
-            for k in rewrite_dict[key].keys() :
+            for k in rewrite_dict[key].keys() :                    
                 if all([path.isfile(file) for file in stage_result_dct[key][k]]) :
                     rewrite_dict[key][k] = False
                 else :
                     rewrite_dict[key][k] = True
+        logger.debug('stage_result_dct = '+str(stage_result_dct))
+        logger.debug('stage_result_dct = '+str(rewrite_dict))
     elif args['mode'] == 1 :
         for key in stages :
             for k in rewrite_dict[key].keys() :
@@ -493,7 +499,7 @@ def process_files(args) :
                              str_of_other_args=''
                             )
             for group in groups :
-                PFMs_ML = path.join(all_paths['blind_search'], path.basename(all_paths['feature'][sample]).replace('.tsv', '_PFMs_ML.tsv'))
+                PFMs_ML = path.join(all_paths['blind_search'], path.basename(all_paths['feature'][sample]).replace('.feature.tsv', '_PFMs_ML.tsv'))
                 # print(PFMs_ML)
                 call_ms1groups(args['ms1searchpy'].replace('ms1searchpy', 'ms1groups'), 
                                PFMs_ML,
@@ -556,7 +562,7 @@ def process_files(args) :
                              str_of_other_args=''
                             )
             for group in groups :
-                PFMs_ML = path.join(all_paths['precise_search'], path.basename(all_paths['feature'][sample]).replace('.tsv', '_PFMs_ML.tsv'))
+                PFMs_ML = path.join(all_paths['precise_search'], path.basename(all_paths['feature'][sample]).replace('.feature.tsv', '_PFMs_ML.tsv'))
                 # print(PFMs_ML)
                 call_ms1groups(args['ms1searchpy'].replace('ms1searchpy', 'ms1groups'), 
                                PFMs_ML,

@@ -732,7 +732,8 @@ def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascen
         ax.grid(axis='x')
         max_y = round(max(y)+100, -2)
         ax.set_xlim((0, max_y))
-        ax.set_xticks(fontsize = 14)
+        # ax.set_xticks(fontsize = 14)
+        ax.tick_params(axis='x', which='major', labelsize=14)
         ax.set_xlabel('# proteins', fontweight='bold')
         ax.set_title(file + ' ' + group)
         if 'include in the combined fasta' in df.columns :
