@@ -546,8 +546,21 @@ def process_files(args) :
             merge_df.fillna(0, inplace=True)
             for sample in all_paths['feature'].keys() :
                 merge_df['needed_'+sample] = merge_df[sample]/merge_df[sample].sum() >= args['taxid_presence_thr']
+            
+            if group == 'OX' :
+                merge_df['len_fasta'] = merge_df['taxid'].apply(lambda x: fmanip.len_fasta_uniprot[x])
+            else :
+                oxdf = pd.read_csv(path.join(all_paths['results'], 'blind_identified_proteins_OX.tsv'), sep='\t')
+                dct = dict((group_taxid, []) for group_taxid in merge_df['taxid'])
+                for group_taxid in merge_df['taxid'] :
+                    for ox in oxdf['taxid'].values :
+                        if group_taxid in NCBITaxa().get_lineage(ox) :
+                            dct[group_taxid].append(fmanip.len_fasta_uniprot[ox])
+                merge_df['len_fasta_by_ox'] = merge_df['taxid'].apply(lambda x: dct[x])
+                merge_df['len_fasta_sum'] = merge_df['len_fasta_by_ox'].apply(sum)
             merge_df['include in the combined fasta'] = merge_df[['needed_'+sample for sample in all_paths['feature'].keys()]].apply(any, axis=1)
             merge_df.drop(columns=['needed_'+sample for sample in all_paths['feature'].keys()], inplace=True)
+            
             merged_path = path.join(all_paths['results'], 'blind_identified_proteins_'+group+'.tsv')
             merge_df.to_csv(merged_path, sep='\t', index=False)
             merged_path = path.join(all_paths['blind_search'], 'blind_identified_proteins_'+group+'.tsv')
