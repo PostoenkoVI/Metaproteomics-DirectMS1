@@ -691,13 +691,12 @@ def log_subprocess_output(pipe):
 def unite_fasta(identification_table:str, out_fasta:str, uniprot_folder:str, threshold:float=0.02, uniprot_suf:str='_un', sep='\t') :
     group = identification_table.rsplit('_')[-1].split('.')[0]
     id_df = pd.read_csv(identification_table, sep=sep)
-    exclude = ['name', 'group', 'taxid', 'include in combined fasta']
+    exclude = ['name', 'group', 'taxid', 'include in combined fasta', 'len_fasta_by_ox', 'len_fasta_sum']
     samples = [col for col in id_df.columns if not col in exclude]
     
     needed_group_taxids = set()
     for sample in samples :
-        id_df[sample] = id_df[sample]/id_df[sample].sum()
-        t = set(id_df[ id_df[sample] > threshold ]['taxid'].values)
+        t = set(id_df[ id_df['include in combined fasta'] ]['taxid'].values)
         needed_group_taxids.update(t)
     
     needed_taxids = set()

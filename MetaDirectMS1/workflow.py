@@ -3,6 +3,7 @@ import pickle
 import logging
 import pandas as pd
 from ete3 import NCBITaxa
+from pyteomics import fasta
 import datetime
 from .utils import log_subprocess_output, feature_generation, mzml_generation, call_ms1searchpy, call_DirectMS1quantmulti, call_ms1groups, call_ThermoRawFileParser, call_Biosaur2, get_aa_mass_with_fixed_mods, load, save, optimize_md, calc_sf_all, prepare_df, noisygaus, plot_identification_hist, plot_tax_barplot, unite_fasta, Fasta_manipulations
 
@@ -544,9 +545,12 @@ def process_files(args) :
             names_dct = NCBITaxa().get_taxid_translator(merge_df['taxid'].to_list())
             merge_df['name'] = merge_df['taxid'].apply(lambda x: names_dct[x])
             merge_df.fillna(0, inplace=True)
-            for sample in all_paths['feature'].keys() :
-                merge_df['needed_'+sample] = merge_df[sample]/merge_df[sample].sum() >= args['taxid_presence_thr']
-            
+            if group == args['taxid_group'] :
+                for sample in all_paths['feature'].keys() :
+                    merge_df['needed_'+sample] = merge_df[sample]/merge_df[sample].sum() >= args['taxid_presence_thr']
+                    merge_df['include in the combined fasta'] = merge_df[['needed_'+sample for sample in all_paths['feature'].keys()]].apply(any, axis=1)
+                    merge_df.drop(columns=['needed_'+sample for sample in all_paths['feature'].keys()], inplace=True
+
             if group == 'OX' :
                 merge_df['len_fasta'] = merge_df['taxid'].apply(lambda x: fmanip.len_fasta_uniprot[x])
             else :
@@ -558,8 +562,8 @@ def process_files(args) :
                             dct[group_taxid].append(fmanip.len_fasta_uniprot[ox])
                 merge_df['len_fasta_by_ox'] = merge_df['taxid'].apply(lambda x: dct[x])
                 merge_df['len_fasta_sum'] = merge_df['len_fasta_by_ox'].apply(sum)
-            merge_df['include in the combined fasta'] = merge_df[['needed_'+sample for sample in all_paths['feature'].keys()]].apply(any, axis=1)
-            merge_df.drop(columns=['needed_'+sample for sample in all_paths['feature'].keys()], inplace=True)
+                
+            
             
             merged_path = path.join(all_paths['results'], 'blind_identified_proteins_'+group+'.tsv')
             merge_df.to_csv(merged_path, sep='\t', index=False)
@@ -574,6 +578,7 @@ def process_files(args) :
 
     if rewrite_dict['precise_search']['precise_search'] :
         if rewrite_dict['precise_search']['search2_fasta'] and not path.isfile(all_paths['search2_fasta']) :
+            logger.info('Number of found taxid in 10%% fasta: %d', taxid_count)
             group = args['taxid_group']
             identification_table = path.join(all_paths['results'], 'blind_identified_proteins_'+group+'.tsv')
             unite_fasta(identification_table, 
@@ -582,6 +587,11 @@ def process_files(args) :
                         threshold=args['taxid_presence_thr'], 
                         uniprot_suf=args['uniprot_suf'],
                        )
+            f = fasta.read(all_paths['search2_fasta'])
+            fasta_len = 0
+            for _, _ in f :
+                fasta_len += 1
+            logger.info('Length of the united fasta: %d', fasta_len)
         for sample, feature_path in all_paths['feature'].items() :
             call_ms1searchpy(args['ms1searchpy'], 
                              feature_path, 
