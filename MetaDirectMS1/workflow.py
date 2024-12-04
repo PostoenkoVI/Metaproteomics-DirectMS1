@@ -398,61 +398,77 @@ def process_files(args) :
     fmanip = Fasta_manipulations(all_paths, args)
     allowed_ranks = list(map(str.strip, args['allowed_ranks'].split(',') ) )
     if rewrite_dict['db_parsing']['taxid_set'] :
+        logger.info('Generating %s.', 'uniprot_taxid_set')
         fmanip.prepare_uniprot_taxid_set(dump=True)
     else :
         try :
+            logger.info('Trying to load %s.', 'uniprot_taxid_set')
             fmanip.uniprot_taxid_set = load(all_paths['uniprot_taxid_set'])
         except :
             logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'uniprot_taxid_set', all_paths['uniprot_taxid_set'])
     if rewrite_dict['db_parsing']['taxid_set'] :
+        logger.info('Generating %s.', 'sprot_taxid_set')
         fmanip.prepare_sprot_taxid_set(dump=True)
     else :
         try :
+            logger.info('Trying to load %s.', 'sprot_taxid_set')
             fmanip.sprot_taxid_set = load(all_paths['sprot_taxid_set'])
         except :
             logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'sprot_taxid_set', all_paths['sprot_taxid_set'])
 
     if rewrite_dict['db_parsing']['len_fasta'] :
+        logger.info('Generating %s.', 'len_fasta_uniprot')
         fmanip.calc_lens_for_uniprot_taxid_set(dump=True)
     else :
         try :
+            logger.info('Trying to load %s.', 'len_fasta_uniprot')
             fmanip.len_fasta_uniprot = load(all_paths['len_fasta_uniprot'])
         except :
             logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'len_fasta_uniprot', all_paths['len_fasta_uniprot'])
     if rewrite_dict['db_parsing']['len_fasta'] :
+        logger.info('Generating %s.', 'len_fasta_sprot')
         fmanip.calc_lens_for_sprot_taxid_set(dump=True)
     else :
         try :
+            logger.info('Trying to load %s.', 'len_fasta_sprot')
             fmanip.len_fasta_sprot = load(all_paths['len_fasta_sprot'])
         except :
             logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'len_fasta_sprot', all_paths['len_fasta_sprot'])
     if rewrite_dict['db_parsing']['species_descendants'] :
+        logger.info('Generating %s.', 'species_descendants')
         fmanip.get_descendents_dict(allowed_ranks, dump=True)
     else :
         try :
+            logger.info('Trying to load %s.', 'species_descendants')
             fmanip.species_descendants = load(all_paths['species_descendants'])
         except :
             logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'species_descendants', all_paths['species_descendants'])
     if rewrite_dict['db_parsing']['leaders_uniprot'] :
+        logger.info('Generating %s.', 'leaders_uniprot')
         fmanip.get_leaders_uniprot(dump=True)
     else :
         try :
+            logger.info('Trying to load %s.', 'leaders_uniprot')
             fmanip.species_leader_uniprot = load(all_paths['leaders_uniprot'])
         except :
             logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'leaders_uniprot', all_paths['leaders_uniprot'])
     if rewrite_dict['db_parsing']['leaders_sprot'] :
+        logger.info('Generating %s.', 'leaders_sprot')
         fmanip.get_leaders_sprot(dump=True)
         fmanip.leaders = set(fmanip.species_leader_sprot.values()).union(set(fmanip.species_leader_uniprot.values()))
     else :
         try :
+            logger.info('Trying to load %s.', 'leaders_sprot')
             fmanip.species_leader_sprot = load(all_paths['leaders_sprot'])
             fmanip.leaders = set(fmanip.species_leader_sprot.values()).union(set(fmanip.species_leader_uniprot.values()))
         except :
             logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'leaders_sprot', all_paths['leaders_sprot'])
     if rewrite_dict['db_parsing']['exclude_names'] :
+        logger.info('Generating %s.', 'exclude_names')
         fmanip.exclude_wrong(dump=True)
     else :
         try :
+            logger.info('Trying to load %s.', 'exclude_names')
             fmanip.exclude_names = load(all_paths['exclude_names'])
         except :
             logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'exclude_names', all_paths['exclude_names'])
@@ -469,6 +485,7 @@ def process_files(args) :
     
     if rewrite_dict['blind_search']['prot_set'] :
         if path.isfile(all_paths['prot_set']) and path.isfile(all_paths['specmap_id']) and path.isfile(all_paths['cnt_to_spec']) :
+            logger.info('Trying to load %s.', 'prot_set')
             fmanip.prot_sets = load(all_paths['prot_set'])
             fmanip.spec_map_id = load(all_paths['specmap_id'])
             fmanip.cnt_to_spec = load(all_paths['cnt_to_spec'])
