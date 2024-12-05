@@ -152,11 +152,17 @@ class Fasta_manipulations :
                     elif rank[i] in allowed_ranks:
                         lineage = NCBITaxa().get_lineage(i)
                         ranks = NCBITaxa().get_rank(lineage)
-                        species = [k for k in ranks.keys() if ranks[k] == 'species'][0]
+                        try :
+                            species = [k for k in ranks.keys() if ranks[k] == 'species'][0]
+                        except IndexError :
+                            logger.info('Taxonomy id %s does not have "species"-rank id and can\'t be used in the following analysis. %s' i, i)
+                            continue
                         descendants = set(NCBITaxa().get_descendant_taxa(species) + [species])
                         species_descendants[species].update(descendants.intersection(self.uniprot_taxid_set))
                         species_descendants[species].add(i)
                         used.update(species_descendants[species])
+                else :
+                    logger.info('Can\'t determine rank of taxonomy id %s. It can\'t be used in the following analysis. %s' i, i)
         used = set()
         if dump :
             with open(self.path_to_species_descendants, 'wb') as f :
