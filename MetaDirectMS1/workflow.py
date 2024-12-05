@@ -548,8 +548,8 @@ def process_files(args) :
             if group == args['taxid_group'] :
                 for sample in all_paths['feature'].keys() :
                     merge_df['needed_'+sample] = merge_df[sample]/merge_df[sample].sum() >= args['taxid_presence_thr']
-                    merge_df['include in the combined fasta'] = merge_df[['needed_'+sample for sample in all_paths['feature'].keys()]].apply(any, axis=1)
-                    merge_df.drop(columns=['needed_'+sample for sample in all_paths['feature'].keys()], inplace=True
+                    merge_df['include in combined fasta'] = merge_df[['needed_'+sample for sample in all_paths['feature'].keys()]].apply(any, axis=1)
+                    merge_df.drop(columns=['needed_'+sample for sample in all_paths['feature'].keys()], inplace=True)
 
             if group == 'OX' :
                 merge_df['len_fasta'] = merge_df['taxid'].apply(lambda x: fmanip.len_fasta_uniprot[x])
@@ -561,9 +561,7 @@ def process_files(args) :
                         if group_taxid in NCBITaxa().get_lineage(ox) :
                             dct[group_taxid].append(fmanip.len_fasta_uniprot[ox])
                 merge_df['len_fasta_by_ox'] = merge_df['taxid'].apply(lambda x: dct[x])
-                merge_df['len_fasta_sum'] = merge_df['len_fasta_by_ox'].apply(sum)
-                
-            
+                merge_df['len_fasta_sum'] = merge_df['len_fasta_by_ox'].apply(sum)            
             
             merged_path = path.join(all_paths['results'], 'blind_identified_proteins_'+group+'.tsv')
             merge_df.to_csv(merged_path, sep='\t', index=False)
@@ -578,7 +576,7 @@ def process_files(args) :
 
     if rewrite_dict['precise_search']['precise_search'] :
         if rewrite_dict['precise_search']['search2_fasta'] and not path.isfile(all_paths['search2_fasta']) :
-            logger.info('Number of found taxid in 10%% fasta: %d', taxid_count)
+            logger.info('United .fasta database would be created: %s', all_paths['search2_fasta'])
             group = args['taxid_group']
             identification_table = path.join(all_paths['results'], 'blind_identified_proteins_'+group+'.tsv')
             unite_fasta(identification_table, 
