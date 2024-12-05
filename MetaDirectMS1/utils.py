@@ -62,7 +62,7 @@ class Fasta_manipulations :
         uniprot_taxid_set = set()
         for p in fasta.read(self.path_to_uniprot):
             spec_i = p[0].split('OX=')[-1].split(' ')[0]
-            if spec_i not in uniprot_taxid_set:
+            if int(spec_i) not in uniprot_taxid_set:
                 uniprot_taxid_set.update([int(spec_i)])
                 fasta.write([(p[0], p[1])], output = path.join(self.path_to_uniprot_dbs, '{}{}.fasta'.format(spec_i, self.uniprot_suf)),
                                 file_mode = 'w')
@@ -83,7 +83,7 @@ class Fasta_manipulations :
         for p in fasta.read(self.path_to_uniprot):
             if p[0].startswith('sp'):
                 spec_i = p[0].split('OX=')[-1].split(' ')[0]
-                if spec_i not in sprot_taxid_set:
+                if int(spec_i) not in sprot_taxid_set:
                     sprot_taxid_set.update([int(spec_i)])
                 # fasta.write([(p[0], p[1])], output = path.join(path_to_swissprot_dbs, '{}.fasta'.format(spec_i)),
                     fasta.write([(p[0], p[1])], output = path.join(self.path_to_sprot_dbs, '{}{}.fasta'.format(spec_i, self.sprot_suf)),
