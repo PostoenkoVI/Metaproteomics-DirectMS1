@@ -633,7 +633,7 @@ def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, out
     with process.stdout:
         log_subprocess_output(process.stdout)
     exitscore = process.wait()
-    return exitscore            
+    return exitscore
             
 def call_ms1groups(path_to_ms1searchpy:str, PFM_ML:str, fasta_path:str, out:str='', group:str='genus', fdr:float=5, nproc:int=4, decoy_prefix:str='',) :
     
@@ -731,7 +731,7 @@ def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascen
     # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
     plt.ioff()
     df = pd.read_csv(path_to_file, sep = '\t')
-    excl = ['group', 'taxid', 'name', 'include in the combined fasta']
+    excl = ['group', 'taxid', 'name', 'include in combined fasta', 'len_fasta', 'len_fasta_by_ox', 'len_fasta_sum']
     file_cols = [col for col in df.columns if not col in excl]
     for file in file_cols :
         df = df.sort_values(by = file, ascending = ascending)
@@ -748,11 +748,11 @@ def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascen
         ax.tick_params(axis='x', which='major', labelsize=14)
         ax.set_xlabel('# proteins', fontweight='bold')
         ax.set_title(file + ' ' + group)
-        if 'include in the combined fasta' in df.columns :
+        if 'include in combined fasta' in df.columns :
             if ascending :
-                h = len(df) - df['include in the combined fasta'].sum() - 0.5
+                h = len(df) - df['include in combined fasta'].sum() - 0.5
             else :
-                h = df['include in the combined fasta'].sum() + 0.5
+                h = df['include in combined fasta'].sum() + 0.5
             ax.text(max_y*0.3, h+0.05, 'border to include taxid in combined fasta')
             ax.plot((0, max_y), (h, h) , color='r')
         savepath = path.join(path.dirname(path_to_file), '_'.join([search, file, group])+'.png')
@@ -763,7 +763,7 @@ def plot_identification_hist(path_to_file:str, search:str='blind' ) : #save:bool
     # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
     plt.ioff()
     df = pd.read_csv(path_to_file, sep = '\t')
-    excl = ['group', 'taxid', 'name', 'include in the combined fasta']
+    excl = ['group', 'taxid', 'name', 'include in combined fasta', 'len_fasta', 'len_fasta_by_ox', 'len_fasta_sum']
     file_cols = [col for col in df.columns if not col in excl]
     x = np.arange(len(file_cols))
     y = [df[file].sum() for file in file_cols]
