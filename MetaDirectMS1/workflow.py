@@ -296,12 +296,15 @@ def initialisation(args) :
             'prot_set' : [all_paths['prot_set'], all_paths['specmap_id'], all_paths['cnt_to_spec'], 
                           all_paths['protsN'], all_paths['accurate_mz_map'], all_paths['spec_map_id_reversed']],
             'blind_search' : [all_paths['top_leaders_search1'][sample] for sample in samples],
-            'ms1search' : [path.join(all_paths['blind_search'], sample+'_'+group+'.tsv') for sample in samples for group in groups],
+            'ms1search' : [path.join(all_paths['blind_search'], sample+'.features_PFMs_ML.tsv') for sample in samples],
+            'ms1groups' : [path.join(all_paths['blind_search'], sample+'_'+group+'.tsv') for sample in samples for group in groups],
             'blind_combined_results' : [path.join(all_paths['blind_search'], 'blind_identified_proteins_'+group+'.tsv') for group in groups],
         },
         'precise_search' : {
             'search2_fasta' : [all_paths['search2_fasta']],
-            'precise_search' : [path.join(all_paths['precise_search'], sample+'_'+group+'.tsv') for sample in samples for group in groups],
+            # 'precise_search' : [path.join(all_paths['precise_search'], sample+'_'+group+'.tsv') for sample in samples for group in groups],
+            'precise_search' : [path.join(all_paths['precise_search'], sample+'.features_PFMs_ML.tsv') for sample in samples],
+            'ms1groups' : [path.join(all_paths['precise_search'], sample+'_'+group+'.tsv') for sample in samples for group in groups],
             'precise_combined_results' : [path.join(all_paths['precise_search'], 'precise_identified_proteins_'+group+'.tsv') for group in groups],
         },
         'quantitation' : {
@@ -327,11 +330,13 @@ def initialisation(args) :
             'prot_set' : True,
             'blind_search' : True,
             'ms1search' : True,
+            'ms1groups' : True,
             'blind_combined_results' : True,
         },
         'precise_search' : {
             'search2_fasta' : True,
             'precise_search' : True,
+            'ms1groups' : True,
             'precise_combined_results' : True,
         },
         'quantitation' : {
@@ -516,8 +521,10 @@ def process_files(args) :
                              decoy_prefix=args['decoy_prefix'],
                              str_of_other_args=''
                             )
+    if rewrite_dict['blind_search']['ms1groups'] :
+        for sample, feature_path in all_paths['feature'].items() :
             for group in groups :
-                PFMs_ML = path.join(all_paths['blind_search'], path.basename(all_paths['feature'][sample]).replace('.feature.tsv', '_PFMs_ML.tsv'))
+                PFMs_ML = path.join(all_paths['blind_search'], path.basename(all_paths['feature'][sample]).replace('.tsv', '_PFMs_ML.tsv'))
                 # print(PFMs_ML)
                 call_ms1groups(args['ms1searchpy'].replace('ms1searchpy', 'ms1groups'), 
                                PFMs_ML,
@@ -599,8 +606,10 @@ def process_files(args) :
                              decoy_prefix=args['decoy_prefix'],
                              str_of_other_args=''
                             )
+    if rewrite_dict['precise_search']['ms1groups'] :
+        for sample, feature_path in all_paths['feature'].items() :
             for group in groups :
-                PFMs_ML = path.join(all_paths['precise_search'], path.basename(all_paths['feature'][sample]).replace('.feature.tsv', '_PFMs_ML.tsv'))
+                PFMs_ML = path.join(all_paths['precise_search'], path.basename(all_paths['feature'][sample]).replace('.tsv', '_PFMs_ML.tsv'))
                 # print(PFMs_ML)
                 call_ms1groups(args['ms1searchpy'].replace('ms1searchpy', 'ms1groups'), 
                                PFMs_ML,
