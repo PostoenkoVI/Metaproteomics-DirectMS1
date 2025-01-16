@@ -56,10 +56,10 @@ def run():
     argparser.add_argument('-taxid_group', nargs='?', help="taxid level to filter organisms found in blind search, availible options: OX, genus, family, species. (default: OX)", default='OX', type=str, const='OX')
     argparser.add_argument('-taxid_presence_thr', nargs='?', help='Percentage threshold to filter taxid with low abundance in sample from united .fasta file for precise search', default=0.02, type=float, const=0.02)
     argparser.add_argument('-score_threshold', nargs='?', help='Minimal number of matched proteins in blind search to report taxid (default: 4)', default=4, type=float, const=4)
-    argparser.add_argument('-num_top_spec', nargs='?', help='Number of taxids to report in blind search. Only top N taxid by number of proteins found are reported. (default: 15)', default=15, type=float, const=15)
+    argparser.add_argument('-num_top_spec', nargs='?', help='Number of taxids to report in blind search. Only top N taxid by number of proteins found are reported. (default: 10)', default=10, type=float, const=10)
     ##############
     argparser.add_argument('-generate_figures', nargs='?', help='Generate figures default: 1', default=1, type=int, choices=[0, 1,], const=1)
-    argparser.add_argument('-mode', nargs='?', help='Mode for MetaDirectMS1 to work: 0 - try to continue existing analysis in selected outdir without rewriting anything, 1 - run all stages of analysis overwriting results in outdir, 2 - overwrite all stages except initial fasta parcing, 3 - overwrite all stages except initial fasta parcing and feature generation (start with blind search), 4 - overwrite precise search and following steps, 5 - overwrite quantitation', default=1, type=int, choices=[0, 1, 2, 3, 4, 5], const=1)
+    argparser.add_argument('-mode', nargs='?', help='Mode for MetaDirectMS1 to work: 0 - try to continue existing analysis in selected outdir without rewriting anything, 1 - run all stages of analysis overwriting results in outdir, 2 - overwrite all stages except initial fasta parcing, 3 - overwrite all stages except initial fasta parcing and feature generation (start with blind search), 4 - overwrite precise search and quantitation, 5 - overwrite quantitation', default=1, type=int, choices=[0, 1, 2, 3, 4, 5], const=1)
     ##############
     
     console_config = vars(argparser.parse_args())
