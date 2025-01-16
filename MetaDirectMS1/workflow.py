@@ -200,7 +200,7 @@ def initialisation(args) :
         logger.warning('Path to full uniprot fasta is not stated or does not exists. It is critical error if database parsing stage wasn\'t completed earlier.')
     
     if args['db_parsing_folder'] :
-        all_paths['db_parsing_folder'] = path.abspath(all_paths['db_parsing_folder'])
+        all_paths['db_parsing_folder'] = path.abspath(args['db_parsing_folder'])
     else :
         all_paths['db_parsing_folder'] = path.join(all_paths['outdir'], 'db_parsing_folder')
     makedirs(all_paths['db_parsing_folder'], exist_ok=True)
@@ -353,7 +353,7 @@ def initialisation(args) :
                 else :
                     rewrite_dict[key][k] = True
         logger.debug('stage_result_dct = '+str(stage_result_dct))
-        logger.debug('stage_result_dct = '+str(rewrite_dict))
+        logger.debug('rewrite_dict = '+str(rewrite_dict))
     elif args['mode'] == 1 :
         for key in stages :
             for k in rewrite_dict[key].keys() :
@@ -509,8 +509,11 @@ def process_files(args) :
                 logger.critical('Something went wrong during blind search for file %s', feature_path)
                 return 1
     
-    groups = list(set( ['OX', args['taxid_group'] ] ))
-    
+    if args['taxid_group'] != 'OX' :
+        groups = ['OX', args['taxid_group'] ]
+    else :
+        groups = ['OX']
+    logger.debug(groups)
     if rewrite_dict['blind_search']['ms1search'] :
         for sample, feature_path in all_paths['feature'].items() :
             call_ms1searchpy(args['ms1searchpy'], 
@@ -535,10 +538,10 @@ def process_files(args) :
                                nproc=4, 
                                decoy_prefix=args['decoy_prefix'],
                               )
-                
     # output tables merging
     if rewrite_dict['blind_search']['blind_combined_results'] :
         for group in groups :
+            logger.debug('Combining blind search results for group %s', group)
             i = 0
             for sample, feature_path in all_paths['feature'].items() :
                 p = path.join(all_paths['blind_search'], sample+'_'+group+'.tsv')
@@ -555,8 +558,8 @@ def process_files(args) :
             if group == args['taxid_group'] :
                 for sample in all_paths['feature'].keys() :
                     merge_df['needed_'+sample] = merge_df[sample]/merge_df[sample].sum() >= args['taxid_presence_thr']
-                    merge_df['include in combined fasta'] = merge_df[['needed_'+sample for sample in all_paths['feature'].keys()]].apply(any, axis=1)
-                    merge_df.drop(columns=['needed_'+sample for sample in all_paths['feature'].keys()], inplace=True)
+                merge_df['include in combined fasta'] = merge_df[['needed_'+sample for sample in all_paths['feature'].keys()]].apply(any, axis=1)
+                merge_df.drop(columns=['needed_'+sample for sample in all_paths['feature'].keys()], inplace=True)
 
             if group == 'OX' :
                 merge_df['len_fasta'] = merge_df['taxid'].apply(lambda x: fmanip.len_fasta_uniprot[x])

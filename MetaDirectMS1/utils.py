@@ -347,7 +347,9 @@ class Fasta_manipulations :
 #         self.prot_sets
 #         self.protsN
         
+        # cnt, top_5_k, md_ar1, id_ar1, _, _ = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold)
         cnt, top_5_k, md_ar1, id_ar1 = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold)
+        logger.debug('top_5_k: ' + str(top_5_k))
         md_ar2 = []
         for z1, z2 in zip(md_ar1, id_ar1):
             if self.cnt_to_spec[z2-1] in top_5_k:
@@ -358,49 +360,70 @@ class Fasta_manipulations :
          
         shift, sigma = optimize_md(md_ar2, bin_width=0.1) ######################## bin_width не менять?
         custom_range_mass_accuracy = [shift-2*sigma, shift+2*sigma]
-        cnt, _, md_ar1, id_ar1 = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold)
-        
-        top_100_species_names = set()
-        for k, v in cnt.most_common():
-            if len(top_100_species_names) < self.num_top_spec:
-                k_orig = self.spec_map_id_reversed[k]
-                if self.len_fasta_uniprot[int(k_orig)] < 220000:
-                    if not int(k_orig) in self.exclude_names: 
-                        top_100_species_names.add(k_orig) 
-                        orig_name = NCBITaxa().get_taxid_translator([k_orig,])[int(k_orig)]
-                        # print(k, k_orig, orig_name, v)
-        prots = []
-        cnt = 0    
-        report = pd.DataFrame()
-        for leader in top_100_species_names :
-            SP = 0
-            UN = 0
-            sp_filename = str(leader)+self.sprot_suf+'.fasta'
-            if sp_filename in listdir(self.path_to_sprot_dbs):
-                for p in fasta.read(path.join(self.path_to_sprot_dbs, sp_filename)):
-                    SP+=1
-            un_filename = str(leader)+self.uniprot_suf+'.fasta'
-            for p in fasta.read(path.join(self.path_to_uniprot_dbs, un_filename)):
-                prots.append(p)
-                UN+=1
-            report = pd.concat([report, pd.DataFrame.from_dict({'ID':[leader],
-                                                               'Sprot':[SP],
-                                                               'Uniprot':[UN]})])
+        # cnt_before_multi, _, md_ar1, id_ar1, cnt_multi_final, _ = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold, nmultistages=self.num_top_spec)
+        cnt_before_multi, _, md_ar1, id_ar1 = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold, nmultistages=self.num_top_spec)
+        logger.debug('len(cnt_before_multi) = %s', len(cnt_before_multi))
+        # logger.debug('len(cnt_multi_final) = %s', len(cnt_multi_final))
+        # for cnt, suf in zip([cnt_before_multi, cnt_multi_final ], ['_blind_search_statistics.tsv', '_blind_search_statistics_multi.tsv']) :
+        for cnt, suf in zip([cnt_before_multi ], ['_blind_search_statistics.tsv']) :
+            top_100_species_names = set()
+            for k, v in cnt.most_common():
+                if len(top_100_species_names) < self.num_top_spec:
+                    k_orig = self.spec_map_id_reversed[k]
+                    if self.len_fasta_uniprot[int(k_orig)] < 220000:
+                        if not int(k_orig) in self.exclude_names: 
+                            top_100_species_names.add(k_orig) 
+                            orig_name = NCBITaxa().get_taxid_translator([k_orig,])[int(k_orig)]
+
+            prots = []
+            report = pd.DataFrame()
+            for leader in top_100_species_names :
+                SP = 0
+                UN = 0
+                sp_filename = str(leader)+self.sprot_suf+'.fasta'
+                if sp_filename in listdir(self.path_to_sprot_dbs):
+                    for p in fasta.read(path.join(self.path_to_sprot_dbs, sp_filename)):
+                        SP+=1
+                un_filename = str(leader)+self.uniprot_suf+'.fasta'
+                for p in fasta.read(path.join(self.path_to_uniprot_dbs, un_filename)):
+                    prots.append(p)
+                    UN+=1
+                report = pd.concat([report, pd.DataFrame.from_dict({'ID':[leader],
+                                                                   'Sprot':[SP],
+                                                                   'Uniprot':[UN]})])
+
+            names = []
+            taxids = []
+            cnt_vals = []
+            for k, v in cnt.items() :
+                taxid = int(self.spec_map_id_reversed[k])
+                temp_names = NCBITaxa().get_taxid_translator([taxid])
+                taxids.append(taxid)
+                names.append(temp_names[taxid])
+                cnt_vals.append(v)
+            temp_df = pd.DataFrame({'taxid':taxids, 'name':names, 'num_matched_prots':cnt_vals, }).sort_values('num_matched_prots', ascending=False)
+            temp_df.to_csv(path_to_out_fasta.replace('_search1.fasta', suf), sep='\t', index=False)
+        temp_df = 0
+        names = 0
+        taxids = 0
+        cnt_vals = 0
+        cnt = 0
 
         if path_to_out_strain_statistics :
             report.to_csv(path_to_out_strain_statistics, index=False)
         random.shuffle(prots)
+        logger.debug('Number of proteins in output database: %s, %s', len(prots), path_to_out_fasta)
         with open(path_to_out_fasta, 'w') as f :
             fasta.write(prots, output=f)
         return 0
                            
     def get_matches(self, 
-                    df1:pd.DataFrame,
+                    df1:pd.DataFrame, 
                     custom_range_mass_accuracy:list,
-                    score_threshold:float=4.0
-                    ) :
+                    score_threshold:float=4.0,
+                    nmultistages:int=0):
 
-        prots_spc = Counter()
+        prots_spc = defaultdict(set)
         md_ar1 = []
         id_ar1 = []
 
@@ -408,56 +431,185 @@ class Fasta_manipulations :
         charges = df1['charge'].values
         nmasses_int = df1['massCalib_int'].values
         nmasses_int_dict = defaultdict(set)
-        for idx, nm in enumerate(nmasses_int) :
+        idx_array_for_features = np.array(range(len(df1)))
+
+        for idx, nm in enumerate(nmasses_int):
             nmasses_int_dict[nm].add(idx)
             nmasses_int_dict[nm-1].add(idx)
             nmasses_int_dict[nm+1].add(idx)
 
         mz_acc_checked = set()
 
-        for mz_int in self.accurate_mz_map :
-            if mz_int in nmasses_int_dict :
-                for mz_acc in self.accurate_mz_map[mz_int] :
-                    if mz_acc not in mz_acc_checked :
+        for mz_int in self.accurate_mz_map:
+            if mz_int in nmasses_int_dict:
+                for mz_acc in self.accurate_mz_map[mz_int]:
+                    if mz_acc not in mz_acc_checked:
                         mz_acc_checked.add(mz_acc)
-                        for idx_nm in nmasses_int_dict[mz_int] :
+                        for idx_nm in nmasses_int_dict[mz_int]:
                             nm_val = nmasses[idx_nm]
                             mass_diff_ppm = (mz_acc - nm_val) / mz_acc * 1e6
-    #                         if abs(mass_diff_ppm) <= mass_accuracy:
                             if custom_range_mass_accuracy[0] <= mass_diff_ppm <= custom_range_mass_accuracy[1] :
-    #                                 md_ar1.append(mass_diff_ppm)
-                                prots_spc.update(self.prot_sets[mz_acc])
-                                for prot in self.prot_sets[mz_acc] :
+                                for prot_name in self.prot_sets[mz_acc]:
+                                    prots_spc[prot_name].add(mz_acc)
+                                for prot in self.prot_sets[mz_acc]:
                                     md_ar1.append(mass_diff_ppm)
                                     id_ar1.append(prot)
                                 break
-
-        top100decoy_score = [prots_spc.get(dprot, 0) for dprot in self.protsN]
+        logger.debug('prots_spc: '+str(len(prots_spc)))
         top100decoy_N = [val for key, val in self.protsN.items()]
+        top100decoy_score = [len(prots_spc.get(dprot, [])) for dprot in self.protsN]
         p = np.mean(top100decoy_score) / np.mean(top100decoy_N)
-        logger.debug('p=%s', (np.mean(top100decoy_score) / np.mean(top100decoy_N)))
+        logger.debug('p=%s', p)
 
         names_arr = np.array(list(prots_spc.keys()))
-        v_arr = np.array([prots_spc[k] for k in names_arr])
+        logger.debug(len(names_arr))
         n_arr = np.array([self.protsN[k] for k in names_arr])
+        v_arr = np.array([len(prots_spc[k]) for k in names_arr])
 
         prots_spc2 = dict()
         all_pvals = calc_sf_all(v_arr, n_arr, p)
         for idx, k in enumerate(names_arr):
-            prots_spc2[k] = all_pvals[idx]
+            prots_spc2[k] = all_pvals[idx]   
+        logger.debug('len prots_spc2: '+str(len(prots_spc2)))
 
-        cnt = Counter()
-        for k, v in prots_spc2.items():
-            if v >= self.score_threshold:
-                sp_id = self.cnt_to_spec[k-1]
-                cnt[sp_id] += 1
-
+        if self.score_threshold == 0 :
+            thr = np.arange(-np.log10(0.05), 6.25, 0.25)
+            i, j = 0, len(thr)-1
+            wanted_prots = 10
+            k_prev = 0
+            for _ in range(len(thr)) :
+                k_cur = i + int((j-i)/2)
+                if k_cur == k_prev :
+                    break
+                cnt = Counter()
+                for k, v in prots_spc2.items() :
+                    if v >= thr[k_cur] :
+                        sp_id = self.cnt_to_spec[k-1]
+                        cnt[sp_id] += 1
+                try :
+                    if cnt[cnt.most_common()[10]] < wanted_prots :
+                        j = k_cur
+                    else :
+                        i = k_cur
+                except IndexError :
+                    j = k_cur
+                k_prev = k_cur
+            counted_prots = defaultdict(set)
+            for k, v in prots_spc2.items() :
+                if v >= thr[k_cur] :
+                    sp_id = self.cnt_to_spec[k-1]
+                    counted_prots[sp_id].update([k])
+        else :
+            cnt = Counter()
+            counted_prots = defaultdict(set)
+            v_max = 0
+            for k, v in prots_spc2.items() :
+                if v > v_max :
+                    v_max = v
+                if v >= self.score_threshold :
+                    sp_id = self.cnt_to_spec[k-1]
+                    cnt[sp_id] += 1
+                    counted_prots[sp_id].update([k])
+        thr_final = thr[k_cur] if self.score_threshold == 0 else self.score_threshold
+        
+        logger.debug('get_matches, len(cnt) = %s', len(cnt))
+        
         top_5_k = set()
         for k, v in cnt.most_common():
             if len(top_5_k) < 5:
                 top_5_k.add(k)
-
+                
         return cnt, top_5_k, md_ar1, id_ar1
+#         if nmultistages:
+#             cnt_multi_final = Counter()
+#             cnt_multi = cnt
+#             sort_cnt = cnt
+#             counted_prots_multi = counted_prots
+#             top_5_k_multi = set()
+#             banned_mz_spid = set()
+#             top_cnt_idx = []
+            
+#             cur_iteration = 1
+#             while True:
+#                 logger.debug('Current iteration: '+str(cur_iteration))
+#                 sorted_sp_list = [top_sp_id for top_sp_id, _ in sort_cnt.most_common()]
+#                 top_5_k_multi.add(sorted_sp_list[0])
+#                 cnt_multi_final[sorted_sp_list[0]] += cnt_multi[sorted_sp_list[0]]
+#                 top_cnt_idx.append(sorted_sp_list[0])
+#                 logger.debug(cnt_multi_final)
+#                 for k, v in prots_spc.items():
+#                     if (self.cnt_to_spec[k-1] == sorted_sp_list[0]) and (k in counted_prots_multi[self.cnt_to_spec[k-1]]) :
+#                         banned_mz_spid.update(v)
+#                 logger.debug(len(banned_mz_spid))
+
+#                 if len(cnt_multi_final) >= nmultistages :
+#                     break
+#                 # elif len(set(top_cnt_idx[-3:])) == 1 and cur_iteration >= 3:
+#                 #     break
+#                 elif cur_iteration >= 100 :
+#                     break
+
+#                 banned_mz = copy(banned_mz_spid)
+#                 max_score = max(prots_spc2.values()) * 2
+
+#                 sp_pos_map = dict()
+#                 max_id = len(sorted_sp_list)
+#                 for sp in sorted_sp_list:
+#                     sp_pos_map[sp] = max_id
+#                     max_id -= 1
+
+#                 prot_value_array = np.array([sp_pos_map.get(self.cnt_to_spec[k-1], 0) + (prots_spc2.get(k, 0)/max_score) for k in names_arr])
+
+#                 idx_for_sort = np.argsort(prot_value_array)[::-1]
+#                 sorted_prot_list = names_arr[idx_for_sort]
+
+#                 prots_spc3 = dict()
+#                 for dprot in sorted_prot_list:
+#                     ar_tmp = prots_spc.get(dprot, [])
+#                     prots_spc3[dprot] = len([mz_val for mz_val in ar_tmp if mz_val not in banned_mz])
+#                     # banned_mz.update(ar_tmp)
+                    
+                
+
+#                 top100decoy_score = [prots_spc3.get(dprot, 0) for dprot in self.protsN]
+#                 p = np.mean(top100decoy_score) / np.mean(top100decoy_N)
+#                 logger.debug('p=%s', p)
+
+#                 v_arr = np.array([prots_spc3[k] for k in names_arr])
+#                 prots_spc2 = dict()
+#                 all_pvals = calc_sf_all(v_arr, n_arr, p)
+#                 for idx, k in enumerate(names_arr):
+#                     prots_spc2[k] = all_pvals[idx]   
+
+#                 cnt_multi = Counter()
+#                 counted_prots_multi = defaultdict(set)
+#                 v_max = 0
+#                 for k, v in prots_spc2.items() :
+#                     if v > v_max :
+#                         v_max = v
+#                     if v >= thr_final :
+#                         sp_id = self.cnt_to_spec[k-1]
+#                         cnt_multi[sp_id] += 1
+#                         counted_prots_multi[sp_id].update([k])
+#                 sort_cnt = Counter()
+#                 n_p_sum = 0
+#                 for sp_id, n_p in cnt_multi.items() :
+#                     n_p_sum += n_p
+#                 for sp_id, n_p in cnt_multi.items() :
+#                     if n_p > n_p_sum/100 and cnt_multi_final[sp_id] > 0 :
+#                         sort_cnt[sp_id] = cnt_multi[sp_id] + cnt_multi_final[sp_id]
+#                     else :
+#                         sort_cnt[sp_id] = cnt_multi[sp_id]
+#                         # cnt_multi[sp_id] += cnt_multi_final[sp_id]
+#                 logger.debug('v_max: %s', v_max)
+#                 logger.debug('len cnt: %s', len(cnt_multi))
+
+#                 cur_iteration += 1
+
+#         else:
+#             cnt_multi_final = Counter()
+#             top_5_k_multi = set()
+        # return cnt, top_5_k, md_ar1, id_ar1, cnt_multi_final, top_5_k_multi
 
 
 def noisygaus(x, a, x0, sigma, b):
