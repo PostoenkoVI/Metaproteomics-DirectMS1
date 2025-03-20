@@ -5,7 +5,7 @@ import pandas as pd
 from ete3 import NCBITaxa
 from pyteomics import fasta
 import datetime
-from .utils import log_subprocess_output, feature_generation, mzml_generation, call_ms1searchpy, call_DirectMS1quantmulti, call_ms1groups, call_ThermoRawFileParser, call_Biosaur2, get_aa_mass_with_fixed_mods, load, save, optimize_md, calc_sf_all, prepare_df, noisygaus, plot_identification_hist, plot_tax_barplot, unite_fasta, Fasta_manipulations
+from .utils import log_subprocess_output, feature_generation, mzml_generation, call_ms1searchpy, call_DirectMS1quantmulti, call_ms1groups, call_ThermoRawFileParser, call_Biosaur2, get_aa_mass_with_fixed_mods, load, save, optimize_md, calc_sf_all, prepare_df, noisygaus, plot_identification_hist, plot_tax_barplot, plot_tax_boxplot, fc_plot, unite_fasta, Fasta_manipulations
 
 logger = logging.getLogger(__name__)
 
@@ -298,17 +298,17 @@ def initialisation(args) :
             'blind_search' : [all_paths['top_leaders_search1'][sample] for sample in samples],
             'ms1search' : [path.join(all_paths['blind_search'], sample+'.features_PFMs_ML.tsv') for sample in samples],
             'ms1groups' : [path.join(all_paths['blind_search'], sample+'_'+group+'.tsv') for sample in samples for group in groups],
-            'blind_combined_results' : [path.join(all_paths['blind_search'], 'blind_identified_proteins_'+group+'.tsv') for group in groups],
+            'blind_combined_results' : [path.join(all_paths['results'], 'blind_identified_proteins_'+group+'.tsv') for group in groups],
         },
         'precise_search' : {
             'search2_fasta' : [all_paths['search2_fasta']],
             # 'precise_search' : [path.join(all_paths['precise_search'], sample+'_'+group+'.tsv') for sample in samples for group in groups],
             'precise_search' : [path.join(all_paths['precise_search'], sample+'.features_PFMs_ML.tsv') for sample in samples],
             'ms1groups' : [path.join(all_paths['precise_search'], sample+'_'+group+'.tsv') for sample in samples for group in groups],
-            'precise_combined_results' : [path.join(all_paths['precise_search'], 'precise_identified_proteins_'+group+'.tsv') for group in groups],
+            'precise_combined_results' : [path.join(all_paths['results'], 'precise_identified_proteins_'+group+'.tsv') for group in groups],
         },
         'quantitation' : {
-            'quantitation' : [],
+            'quantitation' : [path.join(all_paths['quantitation'], 'DQmulti_proteins_LFQ.tsv'),],
         },
     }
     # rewrite
@@ -399,7 +399,7 @@ def process_files(args) :
     all_paths, rewrite_dict, aa_mass = initialisation(args)
     if not all_paths :
         return 1
-    logger.debug(all_paths)
+    # logger.debug(all_paths)
 
     fmanip = Fasta_manipulations(all_paths, args)
     allowed_ranks = list(map(str.strip, args['allowed_ranks'].split(',') ) )
@@ -411,7 +411,7 @@ def process_files(args) :
             logger.info('Trying to load %s.', 'uniprot_taxid_set')
             fmanip.uniprot_taxid_set = load(all_paths['uniprot_taxid_set'])
         except :
-            logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'uniprot_taxid_set', all_paths['uniprot_taxid_set'])
+            logger.warning('Unable to load %s. Try mode 0 or 1. %s', 'uniprot_taxid_set', all_paths['uniprot_taxid_set'])
     if rewrite_dict['db_parsing']['taxid_set'] :
         logger.info('Generating %s.', 'sprot_taxid_set')
         fmanip.prepare_sprot_taxid_set(dump=True)
@@ -420,7 +420,7 @@ def process_files(args) :
             logger.info('Trying to load %s.', 'sprot_taxid_set')
             fmanip.sprot_taxid_set = load(all_paths['sprot_taxid_set'])
         except :
-            logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'sprot_taxid_set', all_paths['sprot_taxid_set'])
+            logger.warning('Unable to load %s. Try mode 0 or 1. %s', 'sprot_taxid_set', all_paths['sprot_taxid_set'])
 
     if rewrite_dict['db_parsing']['len_fasta'] :
         logger.info('Generating %s.', 'len_fasta_uniprot')
@@ -430,7 +430,7 @@ def process_files(args) :
             logger.info('Trying to load %s.', 'len_fasta_uniprot')
             fmanip.len_fasta_uniprot = load(all_paths['len_fasta_uniprot'])
         except :
-            logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'len_fasta_uniprot', all_paths['len_fasta_uniprot'])
+            logger.warning('Unable to load %s. Try mode 0 or 1. %s', 'len_fasta_uniprot', all_paths['len_fasta_uniprot'])
     if rewrite_dict['db_parsing']['len_fasta'] :
         logger.info('Generating %s.', 'len_fasta_sprot')
         fmanip.calc_lens_for_sprot_taxid_set(dump=True)
@@ -439,7 +439,7 @@ def process_files(args) :
             logger.info('Trying to load %s.', 'len_fasta_sprot')
             fmanip.len_fasta_sprot = load(all_paths['len_fasta_sprot'])
         except :
-            logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'len_fasta_sprot', all_paths['len_fasta_sprot'])
+            logger.warning('Unable to load %s. Try mode 0 or 1. %s', 'len_fasta_sprot', all_paths['len_fasta_sprot'])
     if rewrite_dict['db_parsing']['species_descendants'] :
         logger.info('Generating %s.', 'species_descendants')
         fmanip.get_descendents_dict(allowed_ranks, dump=True)
@@ -448,7 +448,7 @@ def process_files(args) :
             logger.info('Trying to load %s.', 'species_descendants')
             fmanip.species_descendants = load(all_paths['species_descendants'])
         except :
-            logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'species_descendants', all_paths['species_descendants'])
+            logger.warning('Unable to load %s. Try mode 0 or 1. %s', 'species_descendants', all_paths['species_descendants'])
     if rewrite_dict['db_parsing']['leaders_uniprot'] :
         logger.info('Generating %s.', 'leaders_uniprot')
         fmanip.get_leaders_uniprot(dump=True)
@@ -457,7 +457,7 @@ def process_files(args) :
             logger.info('Trying to load %s.', 'leaders_uniprot')
             fmanip.species_leader_uniprot = load(all_paths['leaders_uniprot'])
         except :
-            logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'leaders_uniprot', all_paths['leaders_uniprot'])
+            logger.warning('Unable to load %s. Try mode 0 or 1. %s', 'leaders_uniprot', all_paths['leaders_uniprot'])
     if rewrite_dict['db_parsing']['leaders_sprot'] :
         logger.info('Generating %s.', 'leaders_sprot')
         fmanip.get_leaders_sprot(dump=True)
@@ -468,7 +468,7 @@ def process_files(args) :
             fmanip.species_leader_sprot = load(all_paths['leaders_sprot'])
             fmanip.leaders = set(fmanip.species_leader_sprot.values()).union(set(fmanip.species_leader_uniprot.values()))
         except :
-            logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'leaders_sprot', all_paths['leaders_sprot'])
+            logger.warning('Unable to load %s. Try mode 0 or 1. %s', 'leaders_sprot', all_paths['leaders_sprot'])
     if rewrite_dict['db_parsing']['exclude_names'] :
         logger.info('Generating %s.', 'exclude_names')
         fmanip.exclude_wrong(dump=True)
@@ -477,7 +477,7 @@ def process_files(args) :
             logger.info('Trying to load %s.', 'exclude_names')
             fmanip.exclude_names = load(all_paths['exclude_names'])
         except :
-            logger.debug('Unable to load %s. Try mode 0 or 1. %s', 'exclude_names', all_paths['exclude_names'])
+            logger.warning('Unable to load %s. Try mode 0 or 1. %s', 'exclude_names', all_paths['exclude_names'])
     
     if rewrite_dict['db_parsing']['10per_fasta'] :
         taxid_count = fmanip.write_10_perc_fasta(treshold=args['min_prot'])
@@ -487,7 +487,7 @@ def process_files(args) :
         mzml_generation(all_paths['raw'], all_paths['mzml_folder'], path_to_mono=args['mono'], path_to_parser=args['thermorawparser'], str_of_other_args='')
     
     if rewrite_dict['input']['feature'] :
-        feature_generation(all_paths['mzml'], all_paths['feature_folder'], path_to_fd=args['biosaur2'], str_of_other_args='')
+        feature_generation(all_paths['mzml'], all_paths['feature_folder'], path_to_fd=args['biosaur2'], str_of_other_args=args['bio2_args'])
     
     if rewrite_dict['blind_search']['prot_set'] :
         if path.isfile(all_paths['prot_set']) and path.isfile(all_paths['specmap_id']) and path.isfile(all_paths['cnt_to_spec']) :
@@ -496,11 +496,13 @@ def process_files(args) :
             fmanip.spec_map_id = load(all_paths['specmap_id'])
             fmanip.cnt_to_spec = load(all_paths['cnt_to_spec'])
         else :
+            logger.info('Generating prot_set.')
             fmanip.prepare_protein_set(dump=True)
         fmanip.reverse_spec_map_id()
         fmanip.mz_map()
     
     if rewrite_dict['blind_search']['blind_search'] :
+        logger.info('Starting blind search peptide matching.' )
         for sample, feature_path in all_paths['feature'].items() :
             df = prepare_df(feature_path)
             out_stat_path = path.join(all_paths['blind_search'], sample+'_strain_statistics.tsv')
@@ -508,6 +510,7 @@ def process_files(args) :
             if exitscore != 0 :
                 logger.critical('Something went wrong during blind search for file %s', feature_path)
                 return 1
+        logger.info('Blind search peptide matching is finished.' )
     
     if args['taxid_group'] != 'OX' :
         groups = ['OX', args['taxid_group'] ]
@@ -515,6 +518,7 @@ def process_files(args) :
         groups = ['OX']
     logger.debug(groups)
     if rewrite_dict['blind_search']['ms1search'] :
+        logger.info('Starting MS1 search for blind search.' )
         for sample, feature_path in all_paths['feature'].items() :
             call_ms1searchpy(args['ms1searchpy'], 
                              feature_path, 
@@ -522,9 +526,12 @@ def process_files(args) :
                              outdir=all_paths['blind_search'],
                              cleavage_rule=args['cleavage_rule'], 
                              decoy_prefix=args['decoy_prefix'],
-                             str_of_other_args=''
+                             str_of_other_args=args['ms1searchpy_args'],
+                             shuffle=True
                             )
+        logger.info('MS1 search for blind search is finished.' )
     if rewrite_dict['blind_search']['ms1groups'] :
+        logger.info('Starting to recalculate fdr for blind search.' )
         for sample, feature_path in all_paths['feature'].items() :
             for group in groups :
                 PFMs_ML = path.join(all_paths['blind_search'], path.basename(all_paths['feature'][sample]).replace('.tsv', '_PFMs_ML.tsv'))
@@ -538,8 +545,10 @@ def process_files(args) :
                                nproc=4, 
                                decoy_prefix=args['decoy_prefix'],
                               )
+        logger.info('Recalculation of fdr for blind search is finished.' )
     # output tables merging
     if rewrite_dict['blind_search']['blind_combined_results'] :
+        logger.info('Starting combining results for blind search.' )
         for group in groups :
             logger.debug('Combining blind search results for group %s', group)
             i = 0
@@ -554,15 +563,22 @@ def process_files(args) :
                     merge_df = merge_df.merge(tdf, on=['taxid', 'group'], how='outer')
             names_dct = NCBITaxa().get_taxid_translator(merge_df['taxid'].to_list())
             merge_df['name'] = merge_df['taxid'].apply(lambda x: names_dct[x])
+            meaningfull_cols = ['group', 'taxid', 'name', 'mean identified proteins', 'median identified proteins',]
+            samples = [col for col in all_paths['feature'].keys()]
             merge_df.fillna(0, inplace=True)
+            merge_df['mean identified proteins'] = merge_df[samples].mean(axis=1)
+            merge_df['median identified proteins'] = merge_df[samples].median(axis=1)
             if group == args['taxid_group'] :
                 for sample in all_paths['feature'].keys() :
                     merge_df['needed_'+sample] = merge_df[sample]/merge_df[sample].sum() >= args['taxid_presence_thr']
+                
                 merge_df['include in combined fasta'] = merge_df[['needed_'+sample for sample in all_paths['feature'].keys()]].apply(any, axis=1)
+                meaningfull_cols.append('include in combined fasta')
                 merge_df.drop(columns=['needed_'+sample for sample in all_paths['feature'].keys()], inplace=True)
 
             if group == 'OX' :
                 merge_df['len_fasta'] = merge_df['taxid'].apply(lambda x: fmanip.len_fasta_uniprot[x])
+                meaningfull_cols += ['len_fasta']
             else :
                 oxdf = pd.read_csv(path.join(all_paths['results'], 'blind_identified_proteins_OX.tsv'), sep='\t')
                 dct = dict((group_taxid, []) for group_taxid in merge_df['taxid'])
@@ -571,20 +587,26 @@ def process_files(args) :
                         if group_taxid in NCBITaxa().get_lineage(ox) :
                             dct[group_taxid].append(fmanip.len_fasta_uniprot[ox])
                 merge_df['len_fasta_by_ox'] = merge_df['taxid'].apply(lambda x: dct[x])
-                merge_df['len_fasta_sum'] = merge_df['len_fasta_by_ox'].apply(sum)            
-            
+                merge_df['len_fasta_sum'] = merge_df['len_fasta_by_ox'].apply(sum)
+                meaningfull_cols += ['len_fasta_by_ox', 'len_fasta_sum']
+            cols = meaningfull_cols + samples
+            merge_df = merge_df[cols].sort_values(by='mean identified proteins', ascending=False)
             merged_path = path.join(all_paths['results'], 'blind_identified_proteins_'+group+'.tsv')
             merge_df.to_csv(merged_path, sep='\t', index=False)
             merged_path = path.join(all_paths['blind_search'], 'blind_identified_proteins_'+group+'.tsv')
             merge_df.to_csv(merged_path, sep='\t', index=False)
         if args['generate_figures'] :
+            logger.info('Generating figures for blind search combined results.' )
             p = path.join(all_paths['results'], 'blind_identified_proteins_OX.tsv')
             plot_identification_hist(p, search='blind')
             for group in groups :
                 p = path.join(all_paths['results'], 'blind_identified_proteins_'+group+'.tsv')
                 plot_tax_barplot(p, group=group, search='blind', ascending=True)
-
+                plot_tax_boxplot(p, group=group, search='blind', ascending=True)
+        logger.info('Combining results for blind search is finished.' )
+        
     if rewrite_dict['precise_search']['precise_search'] :
+        logger.info('Starting precise search.' )
         if rewrite_dict['precise_search']['search2_fasta'] and not path.isfile(all_paths['search2_fasta']) :
             logger.info('United .fasta database would be created: %s', all_paths['search2_fasta'])
             group = args['taxid_group']
@@ -600,16 +622,32 @@ def process_files(args) :
             for _, _ in f :
                 fasta_len += 1
             logger.info('Length of the united fasta: %d', fasta_len)
+        
+        shuffle_fasta = True
         for sample, feature_path in all_paths['feature'].items() :
-            call_ms1searchpy(args['ms1searchpy'], 
-                             feature_path, 
-                             all_paths['search2_fasta'], 
-                             outdir=all_paths['precise_search'],
-                             cleavage_rule=args['cleavage_rule'], 
-                             decoy_prefix=args['decoy_prefix'],
-                             str_of_other_args=''
-                            )
+            if shuffle_fasta :
+                call_ms1searchpy(args['ms1searchpy'], 
+                                 feature_path, 
+                                 all_paths['search2_fasta'], 
+                                 outdir=all_paths['precise_search'],
+                                 cleavage_rule=args['cleavage_rule'], 
+                                 decoy_prefix=args['decoy_prefix'],
+                                 str_of_other_args=args['ms1searchpy_args'],
+                                 shuffle=shuffle_fasta,
+                                )
+                shuffle_fasta = False
+            else :
+                call_ms1searchpy(args['ms1searchpy'], 
+                                 feature_path, 
+                                 all_paths['search2_fasta'].replace('.fasta', '_shuffled.fasta'), 
+                                 outdir=all_paths['precise_search'],
+                                 cleavage_rule=args['cleavage_rule'], 
+                                 decoy_prefix=args['decoy_prefix'],
+                                 str_of_other_args=args['ms1searchpy_args'],
+                                )
+        logger.info('Precise search is finished.' )
     if rewrite_dict['precise_search']['ms1groups'] :
+        logger.info('Starting to recalculate fdr for precise search.' )
         for sample, feature_path in all_paths['feature'].items() :
             for group in groups :
                 PFMs_ML = path.join(all_paths['precise_search'], path.basename(all_paths['feature'][sample]).replace('.tsv', '_PFMs_ML.tsv'))
@@ -623,8 +661,10 @@ def process_files(args) :
                                nproc=4, 
                                decoy_prefix=args['decoy_prefix'],
                               )
+        logger.info('Recalculation of fdr for precise search is finished.' )
     # output tables merging
     if rewrite_dict['precise_search']['precise_combined_results'] :
+        logger.info('Starting combining results for precise search.' )
         for group in groups :
             i = 0
             for sample, feature_path in all_paths['feature'].items() :
@@ -638,20 +678,31 @@ def process_files(args) :
                     merge_df = merge_df.merge(tdf, on=['taxid', 'group'], how='outer')
             names_dct = NCBITaxa().get_taxid_translator(merge_df['taxid'].to_list())
             merge_df['name'] = merge_df['taxid'].apply(lambda x: names_dct[x])
+            meaningfull_cols = ['group', 'taxid', 'name', 'mean identified proteins', 'median identified proteins',]
+            samples = [col for col in all_paths['feature'].keys()]
             merge_df.fillna(0, inplace=True)
+            merge_df['mean identified proteins'] = merge_df[samples].mean(axis=1)
+            merge_df['median identified proteins'] = merge_df[samples].median(axis=1)
+            cols = meaningfull_cols + samples
+            merge_df = merge_df[cols].sort_values(by='mean identified proteins', ascending=False)
+            
             merged_path = path.join(all_paths['results'], 'precise_identified_proteins_'+group+'.tsv')
             merge_df.to_csv(merged_path, sep='\t', index=False)
             merged_path = path.join(all_paths['precise_search'], 'precise_identified_proteins_'+group+'.tsv')
             merge_df.to_csv(merged_path, sep='\t', index=False)
         if args['generate_figures'] :
+            logger.info('Generating figures for precise search combined results.' )
             p = path.join(all_paths['results'], 'precise_identified_proteins_OX.tsv')
             plot_identification_hist(p, search='precise')
             for group in groups :
                 p = path.join(all_paths['results'], 'precise_identified_proteins_'+group+'.tsv')
                 plot_tax_barplot(p, group=group, search='precise', ascending=True)
+                plot_tax_boxplot(p, group=group, search='precise', ascending=True)
+        logger.info('Combining results for precise search is finished.' )
 
     if rewrite_dict['quantitation']['quantitation'] :
         if path.isfile(all_paths['sample_file']) :
+            logger.info('Starting quantitation stage.' )
             call_DirectMS1quantmulti(args['ms1searchpy'].replace('ms1searchpy', 'directms1quantmulti'),
                                      all_paths['precise_search'],
                                      fasta_path=all_paths['search2_fasta'],
@@ -659,7 +710,17 @@ def process_files(args) :
                                      out_folder=all_paths['quantitation'],
                                      # min_signif_for_pept=999,
                                     )
-            
+            logger.info('Quantitation stage is finished.' )
         else :
             logger.warning('Path to sample file does not exists: %s', all_paths['sample_file'])
+        if args['generate_figures'] :
+            for file in listdir(all_paths['quantitation']) :
+                if file.endswith('_quant_peptides.tsv') :
+                    logger.info('Generating figures for file %s', file)
+                    p = path.join(all_paths['quantitation'], file)
+                    fc_plot(p, fasta=all_paths['search2_fasta'])
+    else :
+        logger.info('Quantitation stage is skipped.' )
+    
+    return 0
             

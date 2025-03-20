@@ -11,6 +11,7 @@ from copy import copy, deepcopy
 from os import path, listdir
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 import random
 import logging
 import subprocess
@@ -40,7 +41,7 @@ class Fasta_manipulations :
         self.mz_for_mass_accuracy = args['mz_for_mass_accuracy'] # (approximate max mz value)
         self.mz_step = self.mass_accuracy * 1e-6 * self.mz_for_mass_accuracy
         self.score_threshold = args['score_threshold']
-        self.num_top_spec = args['num_top_spec']
+        self.num_top_spec = int(args['num_top_spec'])
         
         self.path_to_uniprot_taxid_set = all_paths['uniprot_taxid_set']
         self.path_to_sprot_taxid_set = all_paths['sprot_taxid_set'] 
@@ -348,7 +349,7 @@ class Fasta_manipulations :
 #         self.protsN
         
         # cnt, top_5_k, md_ar1, id_ar1, _, _ = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold)
-        cnt, top_5_k, md_ar1, id_ar1 = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold)
+        cnt, top_5_k, md_ar1, id_ar1 = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold, num_top_spec=self.num_top_spec)
         logger.debug('top_5_k: ' + str(top_5_k))
         md_ar2 = []
         for z1, z2 in zip(md_ar1, id_ar1):
@@ -361,7 +362,7 @@ class Fasta_manipulations :
         shift, sigma = optimize_md(md_ar2, bin_width=0.1) ######################## bin_width не менять?
         custom_range_mass_accuracy = [shift-2*sigma, shift+2*sigma]
         # cnt_before_multi, _, md_ar1, id_ar1, cnt_multi_final, _ = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold, nmultistages=self.num_top_spec)
-        cnt_before_multi, _, md_ar1, id_ar1 = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold, nmultistages=self.num_top_spec)
+        cnt_before_multi, _, md_ar1, id_ar1 = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold, num_top_spec=self.num_top_spec)
         logger.debug('len(cnt_before_multi) = %s', len(cnt_before_multi))
         # logger.debug('len(cnt_multi_final) = %s', len(cnt_multi_final))
         # for cnt, suf in zip([cnt_before_multi, cnt_multi_final ], ['_blind_search_statistics.tsv', '_blind_search_statistics_multi.tsv']) :
@@ -421,7 +422,7 @@ class Fasta_manipulations :
                     df1:pd.DataFrame, 
                     custom_range_mass_accuracy:list,
                     score_threshold:float=4.0,
-                    nmultistages:int=0):
+                    num_top_spec:int=10):
 
         prots_spc = defaultdict(set)
         md_ar1 = []
@@ -473,27 +474,28 @@ class Fasta_manipulations :
         logger.debug('len prots_spc2: '+str(len(prots_spc2)))
 
         if self.score_threshold == 0 :
-            thr = np.arange(-np.log10(0.05), 6.25, 0.25)
+            thr = np.arange(-np.log10(0.05), 6.25, 0.005)
             i, j = 0, len(thr)-1
-            wanted_prots = 10
             k_prev = 0
             for _ in range(len(thr)) :
                 k_cur = i + int((j-i)/2)
                 if k_cur == k_prev :
                     break
                 cnt = Counter()
+                pvals_cnt = Counter()
                 for k, v in prots_spc2.items() :
                     if v >= thr[k_cur] :
                         sp_id = self.cnt_to_spec[k-1]
                         cnt[sp_id] += 1
                 try :
-                    if cnt[cnt.most_common()[10]] < wanted_prots :
+                    if cnt[cnt.most_common()[num_top_spec][0]] < 10:
                         j = k_cur
                     else :
                         i = k_cur
                 except IndexError :
                     j = k_cur
                 k_prev = k_cur
+            logger.debug('Threshold: '+str(thr[k_cur]))
             counted_prots = defaultdict(set)
             for k, v in prots_spc2.items() :
                 if v >= thr[k_cur] :
@@ -503,6 +505,7 @@ class Fasta_manipulations :
             cnt = Counter()
             counted_prots = defaultdict(set)
             v_max = 0
+            logger.debug('Threshold: '+str(self.score_threshold))
             for k, v in prots_spc2.items() :
                 if v > v_max :
                     v_max = v
@@ -643,7 +646,10 @@ def optimize_md(md_ar2:np.ndarray, bin_width=0.1) :
     noise = np.min(H2)
     p0 = (m, mi, s, noise)
     logger.debug('p0: %s', p0 )
-    popt, pcov = curve_fit(noisygaus, b2[1:], H2, p0=p0)
+    try :
+        popt, pcov = curve_fit(noisygaus, b2[1:], H2, p0=p0, )
+    except RuntimeError :
+        popt, pcov = curve_fit(noisygaus, b2[1:], H2, p0=p0, maxfev = 10000)
     shift, sigma = popt[1], abs(popt[2])
     logger.debug('Optimized mass shift and sigma: %s, %s', shift, sigma)
     return shift, sigma
@@ -717,7 +723,7 @@ def call_Biosaur2(path_to_bio2:str, mzml_path:str, outpath:str, str_of_other_arg
                 msg = 'Ignoring {} parameter from additional args to Biosaur2'.format(wrong_add_arg)
                 logger.warning(msg)
                 str_of_other_args = str_of_other_args.split(wrong_add_arg)[0] + ' '.join(str_of_other_args.split(wrong_add_arg)[-1].strip().split()[1:])
-        other_args = [x.strip() for x in str_of_other_args.split(' ')]
+        other_args = [x.strip('\"\'\ ') for x in str_of_other_args.split(' ')]
     else :
         other_args = []
     final_args = [path_to_bio2, mzml_path, '-o', outpath, ] + other_args
@@ -760,11 +766,11 @@ def call_ThermoRawFileParser(path_to_mono:str, path_to_parser:str, raw_file:str,
     return exitscore
 
 
-def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, outdir:str='', cleavage_rule:str='', decoy_prefix:str='', str_of_other_args:str='') :
-    wrong_add_args = ['-d', '-deeplc', 
-                      '-e', '-ad', 
-                      '-prefix', '-ml',
-                      '-ts', '-o'
+def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, outdir:str='', cleavage_rule:str='', decoy_prefix:str='', shuffle:bool=False, str_of_other_args:str='') :
+    wrong_add_args = ['-d ', '-deeplc ', 
+                      '-e ', '-ad ', 
+                      '-prefix ', '-ml ',
+                      '-ts ', '-o '
                      ]
     if str_of_other_args :
         for wrong_add_arg in wrong_add_args :
@@ -772,10 +778,14 @@ def call_ms1searchpy(path_to_ms1searchpy:str, feat_path:str, fasta_path:str, out
                 msg = 'Ignoring {} parameter from additional args to ms1searchpy'.format(wrong_add_arg)
                 logger.info(msg)
                 str_of_other_args = str_of_other_args.split(wrong_add_arg)[0] + ' '.join(str_of_other_args.split(wrong_add_arg)[-1].strip().split()[1:])
-        other_args = [x.strip() for x in str_of_other_args.split(' ')]
+        other_args = [x.strip('\"\'\ ') for x in str_of_other_args.split(' ')]
     else :
         other_args = []
-    other_args = ['-o', outdir, '-d', fasta_path, '-e', cleavage_rule, '-prefix', decoy_prefix, '-ad', '1', '-deeplc', '1', '-ml', '1', '-ts', '2'] + other_args
+    other_args = ['-o', outdir, '-d', fasta_path, '-e', cleavage_rule, '-prefix', decoy_prefix, '-deeplc', '1', '-ml', '1', '-ts', '2'] + other_args
+    if shuffle :
+        other_args = other_args + ['-ad', '1']
+    else :
+        other_args = other_args + ['-ad', '0']
     final_args = [path_to_ms1searchpy, feat_path, ] + other_args
     final_args = list(filter(lambda x: False if x=='' else True, final_args))
     logger.debug(final_args)
@@ -873,17 +883,20 @@ def unite_fasta(identification_table:str, out_fasta:str, uniprot_folder:str, thr
             if any( [group_taxid in lineage for group_taxid in needed_group_taxids] ) :
                 needed_taxids.update([i])
 
+    prots = []
     with open(out_fasta, mode='w') as fout :
         for tid in needed_taxids :
             f = fasta.read(path.join(uniprot_folder, str(tid)+uniprot_suf+'.fasta'))
-            fasta.write(f, output=fout)
+            for p in f :
+                prots.append(p)
+        random.shuffle(prots)
+        fasta.write(prots, output=fout)
             
             
 def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascending:bool=True) : #save:bool=False) :
     # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
-    plt.ioff()
     df = pd.read_csv(path_to_file, sep = '\t')
-    excl = ['group', 'taxid', 'name', 'include in combined fasta', 'len_fasta', 'len_fasta_by_ox', 'len_fasta_sum']
+    excl = ['group', 'taxid', 'name', 'include in combined fasta', 'len_fasta', 'len_fasta_by_ox', 'len_fasta_sum', 'mean identified proteins', 'median identified proteins']
     file_cols = [col for col in df.columns if not col in excl]
     for file in file_cols :
         df = df.sort_values(by = file, ascending = ascending)
@@ -909,13 +922,31 @@ def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascen
             ax.plot((0, max_y), (h, h) , color='r')
         savepath = path.join(path.dirname(path_to_file), '_'.join([search, file, group])+'.png')
         fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
+        plt.close()
         
+def plot_tax_boxplot(path_to_file:str, search:str='blind', group:str='OX', ascending:bool=True) :
+    plt.ioff()
+    df = pd.read_csv(path_to_file, sep = '\t')
+    excl = ['group', 'taxid', 'name', 'include in combined fasta', 'len_fasta', 'len_fasta_by_ox', 'len_fasta_sum', 'mean identified proteins', 'median identified proteins']
+    file_cols = [col for col in df.columns if not col in excl]
+    df = df.sort_values(by = 'mean identified proteins', ascending = ascending)
+    x = df[file_cols].T.values
+    y_names = df['name'].values
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    colors = ['#4472c4ff','#133054ff']
+    ax.boxplot(x, tick_labels=df['name'].values, vert=False)
+    ax.set_xlabel('# proteins', fontweight='bold')
+    ax.set_title('identified proteins for '+ group)
+    ax.grid(axis='x')
+    savepath = path.join(path.dirname(path_to_file), '_'.join([search, 'taxonomy', 'boxplot', group])+'.png')
+    fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
+    plt.close()
         
 def plot_identification_hist(path_to_file:str, search:str='blind' ) : #save:bool=False) :
     # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
     plt.ioff()
     df = pd.read_csv(path_to_file, sep = '\t')
-    excl = ['group', 'taxid', 'name', 'include in combined fasta', 'len_fasta', 'len_fasta_by_ox', 'len_fasta_sum']
+    excl = ['group', 'taxid', 'name', 'include in combined fasta', 'len_fasta', 'len_fasta_by_ox', 'len_fasta_sum', 'mean identified proteins', 'median identified proteins']
     file_cols = [col for col in df.columns if not col in excl]
     x = np.arange(len(file_cols))
     y = [df[file].sum() for file in file_cols]
@@ -932,7 +963,70 @@ def plot_identification_hist(path_to_file:str, search:str='blind' ) : #save:bool
     ax.set_title('Identified proteins per file in {} search'.format(search))
     savepath = path.join(path.dirname(path_to_file), '_'.join([search, 'identified_proteins'])+'.png')
     fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
+    plt.close()
     
+def parse_fasta_for_quant(fasta_path:str) :
+    prot_dict = dict()
+    ox_list = []
+    for descr, seq in fasta.read(fasta_path) :
+        dbname = descr.split(' ')[0]
+        ox = int(descr.split('OX=')[-1].split(' ')[0])
+        name = NCBITaxa().get_taxid_translator([ox])[ox]
+        if ox in ox_list :
+            prot_dict[ox].add(dbname)
+        else :
+            ox_list.append(ox)
+            prot_dict[ox] = set([dbname])
+    ox_name_dict = NCBITaxa().get_taxid_translator(ox_list)
+    return prot_dict, ox_list, ox_name_dict
+
+
+def fc_plot(quant_peptides_file:str, fasta:str='', ) : 
+    comp = '_'.join(quant_peptides_file.rstrip('_quant_peptides.tsv').split('_')[-3:])
+    prot_dict, ox_list, ox_name_dict = parse_fasta_for_quant(fasta)
+    df = pd.read_csv(quant_peptides_file, sep = '\t')
+    df_base = df[df['decoy'] == False].copy()
+    df_base = df_base.drop_duplicates(subset='peptide')
+    baseline = np.histogram(df_base['FC'].tolist(), bins = 120, range = (-12, 12), density = True)
+    
+    for ox in ox_list:
+        fig, ax = plt.subplots(1, 2, figsize = (26/2.54, 10/2.54))
+        sns.lineplot(x = baseline[1][:-1], y = baseline[0], ax = ax[0], color = 'blue')
+        ax[0].set_title('Baseline', fontsize = 12, fontweight = 'bold')
+        ax[0].tick_params(axis ='both', labelsize = 12)
+        ax[0].set_xlabel('log2FC', fontsize = 12)
+        ax[0].set_ylabel('Normalized density', fontsize = 12)
+        ax[0].set_xticks(np.arange(-12, 15, 3))
+    
+        tmp_df = df[df['proteins'].apply(lambda x: x in prot_dict[ox])].copy()
+        tmp_df = tmp_df.drop_duplicates(subset='peptide')
+        pepts = np.histogram(tmp_df[tmp_df['decoy'] == False]['FC'].tolist(), 
+                             bins = 120, range = (-12, 12), density = True)
+        fin = pepts[0] - baseline[0]
+
+        pepts_custom = pepts[1][1:] + (pepts[1][1] - pepts[1][0])/2
+        exp_value2 = np.average(pepts_custom, weights=fin.clip(0, 1e6))
+
+        # up = comp.split('/')[0]
+        # down = comp.split('/')[1]
+        up = 'A'
+        down = 'B'
+        # max_mass = np.max([int(fc_orig.loc[up, s]), int(fc_orig.loc[down, s])])
+
+        sns.lineplot(x = pepts[1][:-1],  y = fin, ax = ax[1], color = 'blue')
+        title = ' '.join(ox_name_dict[ox])
+
+        # title += '{} ng/{} ng'.format(int(fc_orig.loc[up, s]), int(fc_orig.loc[down, s]))
+        ax[1].set_title(title, fontsize = 12, fontweight = 'bold')
+        ax[1].tick_params(axis ='both', labelsize = 12)
+        # ax[1].axvline(x = fc_act.loc[s, comp], color = color_vline)
+        # ax[1].axvline(x = exp_value2, color = 'red')
+        ax[1].set_xlabel('log2FC', fontsize = 12)
+        ax[1].set_xticks(np.arange(-12, 15, 3))
+        # ax[1].set_ylabel('Normalized density', fontsize = 12)
+        savepath = path.join(path.dirname(quant_peptides_file).replace('quantitation', 'results'), '_'.join(['tax_quant_', comp, str(ox)])+'.png')
+        fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
+        plt.close()
     
 def read_cfg(file, category) :
     with open(file, 'r') as ff :

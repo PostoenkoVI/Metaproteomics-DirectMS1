@@ -60,13 +60,14 @@ def run():
     ##############
     argparser.add_argument('-generate_figures', nargs='?', help='Generate figures default: 1', default=1, type=int, choices=[0, 1,], const=1)
     argparser.add_argument('-mode', nargs='?', help='Mode for MetaDirectMS1 to work: 0 - try to continue existing analysis in selected outdir without rewriting anything, 1 - run all stages of analysis overwriting results in outdir, 2 - overwrite all stages except initial fasta parcing, 3 - overwrite all stages except initial fasta parcing and feature generation (start with blind search), 4 - overwrite precise search and quantitation, 5 - overwrite quantitation', default=1, type=int, choices=[0, 1, 2, 3, 4, 5], const=1)
+    argparser.add_argument('-bio2_args', nargs='?', help='String of additional arguments to submit into Biosaur2 (in command line the string should be in double quotes: \'\" \"\', in cfg file in single quotes) except: -o; default: ""', type=str, default='', const='')
+    argparser.add_argument('-ms1searchpy_args', nargs='?', help='String of additional arguments to submit into ms1searchpy (in command line the string should be in double quotes: \'\" \"\', in cfg file in single quotes) except: -d, -deeplc, -e, -ad, -prefix, -ml, -ts, -o; default: ""', type=str, default='', const='')
     ##############
-    
     console_config = vars(argparser.parse_args())
     console_keys = [x[1:] for x in sys.argv if x.startswith('-')] 
+    # console_keys = vars(argparser.parse_args(sys.argv[1:]))
     default_config = vars(argparser.parse_args([]))
     additional_config = {}
-
     if console_config['cfg'] :
         if path.exists(console_config['cfg']) :
             if console_config['cfg_category'] :
@@ -83,6 +84,9 @@ def run():
             args.update({k: additional_config[k]})
     for k in console_keys :
         args.update({k: console_config[k]})
+    
+    for k, v in args.items() :
+        print(k, v)
     
     loglevel = args['logs'].upper()
     numeric_level = getattr(logging, loglevel, None)
@@ -143,6 +147,7 @@ def run():
     if args['logs'].lower() == "DEBUG" :
         try :
             exitscore = workflow.process_files(args)
+            counter = workflow.log_parsing(log_path, stage_id='All')
             logger.info('Totally occured %s warnings, %s errors, %s critical errors.', counter['WARNING'], counter['ERROR'], counter['CRITICAL'])
         except :
             counter = workflow.log_parsing(log_path, stage_id='All')
@@ -150,6 +155,7 @@ def run():
             exitscore = 1
     else :
         exitscore = workflow.process_files(args)
+        counter = workflow.log_parsing(log_path, stage_id='All')
         logger.info('Totally occured %s warnings, %s errors, %s critical errors.', counter['WARNING'], counter['ERROR'], counter['CRITICAL'])
         
     if exitscore == 0 :
