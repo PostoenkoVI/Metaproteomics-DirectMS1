@@ -2,6 +2,11 @@
 `MetaDirectMS1` is a python-based full-workflow pipeline for metaproteomics analysis. It is designed to identify the most represented organisms in a sample based on data from an ultrafast proteomic (LC-MS) experiment and quantify its proteins. This is achieved by a three-stage search based on a `.fasta` database of potentially present organisms in the sample. For example, for microbiome researches full Uniprot database of bacteria is used.
 
 ## Installation
+It is recommended to additionally install retention time prediction tool DeepLC version 1.1.2.2 (unofficial fork with small changes). Newer version has some issues right now. It is highly important to install DeepLC before ms1searchpy for outdated packages compatibility!
+
+    pip install https://github.com/markmipt/DeepLC/archive/refs/heads/alternative_best_model.zip
+
+After that, install MetaDirectMS1:
 
     pip install git+https://github.com/PostoenkoVI/Metaproteomics-DirectMS1
 
@@ -40,7 +45,144 @@ Each category of config file is independent set of parameters and only one is re
 So if in any case analysis stopped before sucessfull ending, `-mode 0` option with exact same inputs and output folder should help to continue workflow from last completed stage. By default `-mode 1` is using to rewrite any old results in output folder.
 
 ### Full cmd options description
-<...>
+options:
+  -h, --help            show this help message and exit
+  -logs [{DEBUG,INFO,WARNING,ERROR,CRITICAL,NOTSET,debug,info,warning,error,critical,nonset}]
+                        level of logging, (DEBUG, INFO, WARNING, ERROR,
+                        CRITICAL) (default: INFO)
+  -log_path [LOG_PATH]  Path to logging file. By default it is in the outdir.
+                        (default: )
+  -full_uniprot_fasta [FULL_UNIPROT_FASTA]
+                        Path to full bacterial SwissProt+TrEMBL .fasta file to
+                        search organisms in (default: )
+  -uniprot_folder [UNIPROT_FOLDER]
+                        Path to folder to store .fasta files splited by
+                        taxonomic identifiers from uniprot (default: )
+  -sprot_folder [SPROT_FOLDER]
+                        Path to folder to store .fasta files splited by
+                        taxonomic identifiers from swissprot (default: )
+  -input_files [INPUT_FILES ...]
+                        input .raw, .mzML or features.tsv files (default: )
+  -raw_folder [RAW_FOLDER]
+                        Input directory with .raw files (default: )
+  -outdir [OUTDIR]      Output directory (default: )
+  -mzml_folder [MZML_FOLDER]
+                        Directory to search or to store .mzML files after
+                        convertation (default: )
+  -feature_folder [FEATURE_FOLDER]
+                        Path to folder where to store and search for biosaur2
+                        files that ends with features.tsv, default:
+                        outdir/features (default: )
+  -db_parsing_folder [DB_PARSING_FOLDER]
+                        Path to folder to store results of parsing initial
+                        .fasta database, that could help reproduce analysis
+                        faster (default: outdir/db_parsing_folder) (default: )
+  -cfg [CFG]            Path to config file (default: )
+  -biosaur2 [BIOSAUR2]  path to Biosaur2 (default: )
+  -mono [MONO]          path to mono to use ThermoRawParser (default: )
+  -thermorawparser [THERMORAWPARSER]
+                        path to ThermoRawParser.exe to use ThermoRawParser
+                        (default: )
+  -ms1searchpy [MS1SEARCHPY]
+                        path to ms1searchpy (default: )
+  -precise_search_fasta [PRECISE_SEARCH_FASTA]
+                        path to custom .fasta file for precise search. By
+                        default fasta will be created automatically. (default:
+                        )
+  -sample_file [SAMPLE_FILE]
+                        path to file with grouping of input files into
+                        comparison groups. Tab-separated, one pair file_name
+                        (without extension) - group_name by line. (default: )
+  -cfg_category [CFG_CATEGORY]
+                        Name of category in config file to use (default:
+                        DEFAULT) (default: DEFAULT)
+  -decoy_prefix [DECOY_PREFIX]
+                        String added to the protein name to showcase that it
+                        is a decoy (default: DECOY) (default: DECOY)
+  -sprot_suf [SPROT_SUF]
+                        String added to the taxid of the organism's .fasta
+                        file to showcase swissprot database (default: _sp)
+                        (default: _sp)
+  -uniprot_suf [UNIPROT_SUF]
+                        String added to the taxid of the organism's .fasta
+                        file to showcase uniprot database (default: _un)
+                        (default: _un)
+  -min_pept_length [MIN_PEPT_LENGTH]
+                        Minimal peptide lenght to use in cleaving 10%
+                        database, lowering the value is not recommended
+                        (default: 9) (default: 9)
+  -missed_cleavages [MISSED_CLEAVAGES]
+                        Number of missed cleavages for cleaving peptide in
+                        both searches. (default: 0) (default: 0)
+  -cleavage_rule [CLEAVAGE_RULE]
+                        cleavage rule in quotes!. X!Tandem style for cleavage
+                        rules: "[RK]|{P}" for trypsin, "[X]|[D]" for asp-n or
+                        "[RK]|{P},[K]|[X]" for mix of trypsin and lys-c
+                        (default: [RK]|{P})
+  -fmods [FMODS]        fixed modifications. Use "[" and "]" for N-term and
+                        C-term amino acids. in
+                        psiname1@aminoacid1,psiname2@aminoacid2 format
+                        (default: Carbamidomethyl@C)
+  -fmods_legend [FMODS_LEGEND]
+                        PSI Names for extra fixed modifications. Oxidation,
+                        Carbamidomethyl and TMT6plex are stored by default in
+                        source code. in psiname1@monomass1,psiname2@monomass2
+                        format (default: )
+  -mass_accuracy [MASS_ACCURACY]
+                        Mass accuracy in ppm for blind search. (default: 4)
+                        (default: 4)
+  -mz_for_mass_accuracy [MZ_FOR_MASS_ACCURACY]
+                        Approximate maximum m/z value to use with
+                        mass_accuracy. (default: 1000) (default: 1000)
+  -allowed_ranks [ALLOWED_RANKS]
+                        Allowed taxonomy categories between <...> and <...>,
+                        default="strain,subspecies,forma
+                        specialis,isolate,serotype,serogroup,no rank"
+                        (default: strain,subspecies,forma
+                        specialis,isolate,serotype,serogroup,no rank)
+  -exclude_sp_uncul [{0,1}]
+                        Exclude sp. and uncultured. organisms (0 - no
+                        exclusion, 1 - exclude) (default: 0)
+  -min_prot [MIN_PROT]  Minimal number of proteins in leader's fasta to write
+                        in 10% organisms fasta. (default: 200) (default: 200)
+  -taxid_group [TAXID_GROUP]
+                        taxid level to filter organisms found in blind search,
+                        availible options: 'OX', 'genus', 'family', 'order',
+                        'class', 'phylum', 'kingdom', 'domain' (default: 'OX')
+                        (default: OX)
+  -taxid_presence_thr [TAXID_PRESENCE_THR]
+                        Percentage threshold to filter taxid with low
+                        abundance in sample from united .fasta file for
+                        precise search (default: 0.02)
+  -score_threshold [SCORE_THRESHOLD]
+                        Minimal number of matched proteins in blind search to
+                        report taxid (default: 4) (default: 4)
+  -num_top_spec [NUM_TOP_SPEC]
+                        Number of taxids to report in blind search. Only top N
+                        taxid by number of proteins found are reported.
+                        (default: 10) (default: 10)
+  -generate_figures [{0,1}]
+                        Generate figures default: 1 (default: 1)
+  -mode [{0,1,2,3,4,5}]
+                        Mode for MetaDirectMS1 to work: 0 - try to continue
+                        existing analysis in selected outdir without rewriting
+                        anything, 1 - run all stages of analysis overwriting
+                        results in outdir, 2 - overwrite all stages except
+                        initial fasta parcing, 3 - overwrite all stages except
+                        initial fasta parcing and feature generation (start
+                        with blind search), 4 - overwrite precise search and
+                        quantitation, 5 - overwrite quantitation (default: 1)
+  -bio2_args [BIO2_ARGS]
+                        String of additional arguments to submit into Biosaur2
+                        (in command line the string should be in double
+                        quotes: '" "', in cfg file in single quotes) except:
+                        -o; default: "" (default: )
+  -ms1searchpy_args [MS1SEARCHPY_ARGS]
+                        String of additional arguments to submit into
+                        ms1searchpy (in command line the string should be in
+                        double quotes: '" "', in cfg file in single quotes)
+                        except: -d, -deeplc, -e, -ad, -prefix, -ml, -ts, -o;
+                        default: "" (default: )
 ## Contacts
 Valeriy Postoenko - v.i.postoenko@gmail.com
 
