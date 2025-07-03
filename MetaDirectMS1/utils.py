@@ -331,7 +331,7 @@ class Fasta_manipulations :
             spec_map_id_reversed[v] = k
         self.spec_map_id_reversed = spec_map_id_reversed
     
-    def blind_search(self, df:pd.DataFrame, path_to_out_fasta='', path_to_out_strain_statistics='') :
+    def blind_search(self, df:pd.DataFrame, path_to_out_fasta='', path_to_out_strain_statistics='', exclude_sp_uncul=0) :
 #         using under hood 
 #         self.mass_accuracy
 #         self.score_threshold
@@ -349,7 +349,7 @@ class Fasta_manipulations :
 #         self.protsN
         
         # cnt, top_5_k, md_ar1, id_ar1, _, _ = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold)
-        cnt, top_5_k, md_ar1, id_ar1 = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold, num_top_spec=self.num_top_spec)
+        cnt, top_5_k, md_ar1, id_ar1, pvals = self.get_matches(df, [-self.mass_accuracy, self.mass_accuracy], score_threshold=self.score_threshold, num_top_spec=self.num_top_spec)
         logger.debug('top_5_k: ' + str(top_5_k))
         md_ar2 = []
         for z1, z2 in zip(md_ar1, id_ar1):
@@ -362,19 +362,47 @@ class Fasta_manipulations :
         shift, sigma = optimize_md(md_ar2, bin_width=0.1) ######################## bin_width не менять?
         custom_range_mass_accuracy = [shift-2*sigma, shift+2*sigma]
         # cnt_before_multi, _, md_ar1, id_ar1, cnt_multi_final, _ = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold, nmultistages=self.num_top_spec)
-        cnt_before_multi, _, md_ar1, id_ar1 = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold, num_top_spec=self.num_top_spec)
+        cnt_before_multi, _, md_ar1, id_ar1, pvals = self.get_matches(df, custom_range_mass_accuracy, score_threshold=self.score_threshold, num_top_spec=self.num_top_spec)
         logger.debug('len(cnt_before_multi) = %s', len(cnt_before_multi))
         # logger.debug('len(cnt_multi_final) = %s', len(cnt_multi_final))
         # for cnt, suf in zip([cnt_before_multi, cnt_multi_final ], ['_blind_search_statistics.tsv', '_blind_search_statistics_multi.tsv']) :
         for cnt, suf in zip([cnt_before_multi ], ['_blind_search_statistics.tsv']) :
+            names = []
+            taxids = []
+            cnt_vals = []
+            fasta_len = []
+            for k, v in cnt.items() :
+                taxid = int(self.spec_map_id_reversed[k])
+                temp_names = NCBITaxa().get_taxid_translator([taxid])
+                taxids.append(taxid)
+                names.append(temp_names[taxid])
+                cnt_vals.append(v)
+                fasta_len.append(self.len_fasta_uniprot[int(self.spec_map_id_reversed[k])])
+            temp_df = pd.DataFrame({'taxid':taxids, 'name':names, 'num_matched_prots':cnt_vals, 'sf_pvalue': pvals, 'len_fasta':fasta_len}).sort_values('num_matched_prots', ascending=False)
+            temp_df['sf_pvalue'].max()
+            temp_df['sort_key'] = temp_df['num_matched_prots'] + temp_df['sf_pvalue'] / 10**len(str(temp_df['sf_pvalue'].max()).split('.')[0])
+            temp_df['exclude_sp_uncul'] = temp_df['taxid'].apply(lambda x: int(x) in self.exclude_names)
+            temp_df = temp_df.sort_values('sort_key', ascending=False)
+            temp_df.to_csv(path_to_out_fasta.replace('_search1.fasta', suf), sep='\t', index=False)
+            
             top_100_species_names = set()
-            for k, v in cnt.most_common():
-                if len(top_100_species_names) < self.num_top_spec:
-                    k_orig = self.spec_map_id_reversed[k]
-                    if self.len_fasta_uniprot[int(k_orig)] < 220000:
-                        if not int(k_orig) in self.exclude_names: 
-                            top_100_species_names.add(k_orig) 
-                            orig_name = NCBITaxa().get_taxid_translator([k_orig,])[int(k_orig)]
+            for taxid in temp_df['taxid'].values :
+                if len(top_100_species_names) < self.num_top_spec :
+                    if self.len_fasta_uniprot[int(taxid)] < 220000 :
+                        if exclude_sp_uncul == 0 :
+                            top_100_species_names.add(taxid) 
+                            orig_name = NCBITaxa().get_taxid_translator([taxid,])[int(taxid)]
+                        else :
+                            if not int(taxid) in self.exclude_names : 
+                                top_100_species_names.add(taxid)
+                                orig_name = NCBITaxa().get_taxid_translator([taxid,])[int(taxid)]
+            # for k, v in cnt.most_common():
+            #     if len(top_100_species_names) < self.num_top_spec:
+            #         k_orig = self.spec_map_id_reversed[k]
+            #         if self.len_fasta_uniprot[int(k_orig)] < 220000:
+            #             if not int(k_orig) in self.exclude_names: 
+            #                 top_100_species_names.add(k_orig) 
+            #                 orig_name = NCBITaxa().get_taxid_translator([k_orig,])[int(k_orig)]
 
             prots = []
             report = pd.DataFrame()
@@ -392,22 +420,11 @@ class Fasta_manipulations :
                 report = pd.concat([report, pd.DataFrame.from_dict({'ID':[leader],
                                                                    'Sprot':[SP],
                                                                    'Uniprot':[UN]})])
-
-            names = []
-            taxids = []
-            cnt_vals = []
-            for k, v in cnt.items() :
-                taxid = int(self.spec_map_id_reversed[k])
-                temp_names = NCBITaxa().get_taxid_translator([taxid])
-                taxids.append(taxid)
-                names.append(temp_names[taxid])
-                cnt_vals.append(v)
-            temp_df = pd.DataFrame({'taxid':taxids, 'name':names, 'num_matched_prots':cnt_vals, }).sort_values('num_matched_prots', ascending=False)
-            temp_df.to_csv(path_to_out_fasta.replace('_search1.fasta', suf), sep='\t', index=False)
         temp_df = 0
         names = 0
         taxids = 0
         cnt_vals = 0
+        pvals = 0
         cnt = 0
 
         if path_to_out_strain_statistics :
@@ -496,14 +513,19 @@ class Fasta_manipulations :
                     j = k_cur
                 k_prev = k_cur
             logger.debug('Threshold: '+str(thr[k_cur]))
-            counted_prots = defaultdict(set)
-            for k, v in prots_spc2.items() :
-                if v >= thr[k_cur] :
-                    sp_id = self.cnt_to_spec[k-1]
-                    counted_prots[sp_id].update([k])
+            n_arr = np.array([self.len_fasta_uniprot[int(self.spec_map_id_reversed[k])] for k in cnt.keys()])
+            v_arr = np.array([cnt[k] for k in cnt.keys()])
+            pvals = calc_sf_all(v_arr, n_arr, 10**(-1*thr[k_cur]))
+
+            
+            # counted_prots = defaultdict(set)
+            # for k, v in prots_spc2.items() :
+            #     if v >= thr[k_cur] :
+            #         sp_id = self.cnt_to_spec[k-1]
+            #         counted_prots[sp_id].update([k])
         else :
             cnt = Counter()
-            counted_prots = defaultdict(set)
+            # counted_prots = defaultdict(set)
             v_max = 0
             logger.debug('Threshold: '+str(self.score_threshold))
             for k, v in prots_spc2.items() :
@@ -512,7 +534,11 @@ class Fasta_manipulations :
                 if v >= self.score_threshold :
                     sp_id = self.cnt_to_spec[k-1]
                     cnt[sp_id] += 1
-                    counted_prots[sp_id].update([k])
+                    # counted_prots[sp_id].update([k])
+            pvals_cnt = dict()
+            n_arr = np.array([self.len_fasta_uniprot[int(self.spec_map_id_reversed[k])] for k in cnt.keys()])
+            v_arr = np.array([cnt[k] for k in cnt.keys()])
+            pvals = calc_sf_all(v_arr, n_arr, 10**(-1*self.score_threshold))
         thr_final = thr[k_cur] if self.score_threshold == 0 else self.score_threshold
         
         logger.debug('get_matches, len(cnt) = %s', len(cnt))
@@ -522,7 +548,7 @@ class Fasta_manipulations :
             if len(top_5_k) < 5:
                 top_5_k.add(k)
                 
-        return cnt, top_5_k, md_ar1, id_ar1
+        return cnt, top_5_k, md_ar1, id_ar1, pvals
 #         if nmultistages:
 #             cnt_multi_final = Counter()
 #             cnt_multi = cnt
@@ -628,7 +654,7 @@ def prepare_df(feature_tsv_path:str, charge_range:tuple=(2, 3), nIsotopes:int=3,
     return df1
 
 
-def calc_sf_all(v:int, n:int, p:float) :
+def calc_sf_all(v, n, p:float) :
     ###
     # calculates survival function for binomial discrete random variable
     # v <= n + 1
@@ -708,7 +734,7 @@ def get_aa_mass_with_fixed_mods(
                 aa_mass[aa] += float(mods_custom_dict[psiname])#float(m)
                 aa_to_psi[aa] = psiname
 
-    logger.debug(aa_mass)
+    #logger.debug(aa_mass)
 
     return aa_mass, aa_to_psi
 

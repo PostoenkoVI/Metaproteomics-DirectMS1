@@ -506,7 +506,7 @@ def process_files(args) :
         for sample, feature_path in all_paths['feature'].items() :
             df = prepare_df(feature_path)
             out_stat_path = path.join(all_paths['blind_search'], sample+'_strain_statistics.tsv')
-            exitscore = fmanip.blind_search(df, path_to_out_fasta=all_paths['top_leaders_search1'][sample], path_to_out_strain_statistics=out_stat_path)
+            exitscore = fmanip.blind_search(df, path_to_out_fasta=all_paths['top_leaders_search1'][sample], path_to_out_strain_statistics=out_stat_path, exclude_sp_uncul=args['exclude_sp_uncul'])
             if exitscore != 0 :
                 logger.critical('Something went wrong during blind search for file %s', feature_path)
                 return 1
@@ -705,7 +705,7 @@ def process_files(args) :
             logger.info('Starting quantitation stage.' )
             call_DirectMS1quantmulti(args['ms1searchpy'].replace('ms1searchpy', 'directms1quantmulti'),
                                      all_paths['precise_search'],
-                                     fasta_path=all_paths['search2_fasta'],
+                                     fasta_path=all_paths['search2_fasta'].replace('.fasta', '_shuffled.fasta'),
                                      samples=all_paths['sample_file'],
                                      out_folder=all_paths['quantitation'],
                                      # min_signif_for_pept=999,
