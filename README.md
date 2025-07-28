@@ -18,7 +18,27 @@ After that, install MetaDirectMS1 freely:
 
     pip install git+https://github.com/PostoenkoVI/Metaproteomics-DirectMS1
 
-## Usage
+## Usage & Examples 
+### Basic usage
+    MetaDirectMS1 -full_uniprot_fasta /path/to/uniprot_fasta_file.fasta -mzml_folder /path/to/folder/with/mzml_files -ms1searchpy /path/to/ms1searchpy -biosaur2 /path/to/biosaur2
+Though it is highly recommended to specify `-outdir`, by default `MetaDirectMS1` creates folder `current_date_MetaDirectMS1` in the input files folder.
+### Config file
+    MetaDirectMS1 -cfg /path/to/config_file
+
+OR
+
+    MetaDirectMS1 -cfg /path/to/config_file -cfg_category my_settings
+Each category of config file is independent set of parameters and only one is read from file. By default it uses DEFAULT category. Example of config file presented in the project folder on github.
+### Modes
+`MetaDirectMS1` has `-mode` option that allows to run algorithm starting with every stage, rewriting results or continuing previous analysis. However, generally, to rewrite starting with `3) Blind search` it needs intermediate results from both previous stages, to unite protein database in `4) Precise search` individual `.fasta` files are needed and so on.
+
+So if in any case analysis stopped before sucessfull ending, `-mode 0` option with exact same inputs and output folder should help to continue workflow from last completed stage. By default `-mode 1` is using to rewrite any old results in output folder.
+
+### Tooltips
+There is an important point in the analysis where user's attention and interpretation is needed. By default MetaDirectMS1 is running all its stages one-by-one, however it is helpfull to check the size of the automatically generated precise search protein database in the log file or manually after the blind search is done. It is recommended to keep the protein database size lower than 200-300 thousands proteins for the search engine to work efficently. To control the database size the file `outdir/results/blind_identified_proteins_GROUP.tsv` contains the column `include in combined fasta` (where `GROUP` is a taxonomy level for the analysis, `OX` by default). Accordingly, after the blind search stage is done it is recommended to check the `blind_identified_proteins_GROUP.tsv` and manually edit the column `include in combined fasta` excluding poorly detected taxonomy groups (or choosing the groups of interest if any prior information about the samples is availiable) to avoid extra wide search space. 
+
+## Workflow stages & Output description
+
 Workflow consists of 5 major stages:
 
 #### 1) Initial database reduction
@@ -36,23 +56,7 @@ On this stage, based on the previous searches, algorithm unites individual `.fas
 #### 5) Quantitation
 Quantitation stage conducts quantitative analysis on existing identification results from Precise search stage using [DirectMS1quantmulti](https://github.com/markmipt/ms1searchpy?tab=readme-ov-file#multi-condition-protein-profiling-using-directms1quantmulti). It needs sample file with details for all project files in format of a tab-separated table. More details on quantitation are described [there](https://github.com/markmipt/ms1searchpy?tab=readme-ov-file#multi-condition-protein-profiling-using-directms1quantmulti).
 
-### Examples
-#### Basic usage
-    MetaDirectMS1 -full_uniprot_fasta /path/to/uniprot_fasta_file.fasta -mzml_folder /path/to/folder/with/mzml_files -ms1searchpy /path/to/ms1searchpy -biosaur2 /path/to/biosaur2
-Though it is highly recommended to specify `-outdir`, by default `MetaDirectMS1` creates folder `current_date_MetaDirectMS1` in the input files folder.
-#### Config file
-    MetaDirectMS1 -cfg /path/to/config_file
-
-OR
-
-    MetaDirectMS1 -cfg /path/to/config_file -cfg_category my_settings
-Each category of config file is independent set of parameters and only one is read from file. By default it uses DEFAULT category. Example of config file presented in the project folder on github.
-#### Modes
-`MetaDirectMS1` has `-mode` option that allows to run algorithm starting with every stage, rewriting results or continuing previous analysis. However, generally, to rewrite starting with `3) Blind search` it needs intermediate results from both previous stages, to unite protein database in `4) Precise search` individual `.fasta` files are needed and so on.
-
-So if in any case analysis stopped before sucessfull ending, `-mode 0` option with exact same inputs and output folder should help to continue workflow from last completed stage. By default `-mode 1` is using to rewrite any old results in output folder.
-
-### Full cmd options description
+## Full cmd options description
 options:
   `-h`, `--help`            show this help message and exit
   
