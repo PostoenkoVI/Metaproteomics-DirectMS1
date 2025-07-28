@@ -2,11 +2,19 @@
 `MetaDirectMS1` is a python-based full-workflow pipeline for metaproteomics analysis. It is designed to identify the most represented organisms in a sample based on data from an ultrafast proteomic (LC-MS) experiment and quantify its proteins. This is achieved by a three-stage search based on a `.fasta` database of potentially present organisms in the sample. For example, for microbiome researches full Uniprot database of bacteria is used.
 
 ## Installation
-It is recommended to additionally install retention time prediction tool DeepLC version 1.1.2.2 (unofficial fork with small changes). Newer version has some issues right now. It is highly important to install DeepLC before ms1searchpy for outdated packages compatibility!
+It is recommended to additionally install retention time prediction tool DeepLC version 1.1.2.2 (unofficial fork with small changes). Newer version has some issues right now. It is highly important to install DeepLC before ms1searchpy for outdated packages compatibility! Thus, the recommended way:
+
+Create and activate virtual environment with python version 3.10.11 (for example using `pyenv` package, for detailed guide see [link](https://akrabat.com/creating-virtual-environments-with-pyenv/)) :
+
+    pyenv install 3.10.11
+    pyenv virtualenv 3.10.11 metadirectms1_env
+    pyenv activate metadirectms1_env
+
+Next, install DeepLC in clean environment to avoid version collisions:
 
     pip install https://github.com/markmipt/DeepLC/archive/refs/heads/alternative_best_model.zip
 
-After that, install MetaDirectMS1:
+After that, install MetaDirectMS1 freely:
 
     pip install git+https://github.com/PostoenkoVI/Metaproteomics-DirectMS1
 
