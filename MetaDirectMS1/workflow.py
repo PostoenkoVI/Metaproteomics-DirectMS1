@@ -718,7 +718,11 @@ def process_files(args) :
                 if file.endswith('_quant_peptides.tsv') :
                     logger.info('Generating figures for file %s', file)
                     p = path.join(all_paths['quantitation'], file)
-                    fc_plot(p, fasta=all_paths['search2_fasta'])
+                    fc_plot(p, 
+                            fasta=all_paths['search2_fasta'].replace('.fasta', '_shuffled.fasta'), 
+                            save_path=path.join(all_paths['quantitation'], file.replace('DQmulti_directms1quant_out_', 'taxon_fc_').replace('_quant_peptides', '') ), 
+                            level=groups[-1]
+                           )
     else :
         logger.info('Quantitation stage is skipped.' )
     

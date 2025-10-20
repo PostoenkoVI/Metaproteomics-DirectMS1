@@ -848,8 +848,22 @@ def call_DirectMS1quantmulti(path_to_ms1searchpy:str, pdir:str, fasta_path:str, 
                              pep_min_non_missing_samples:float=0.5, 
                              min_signif_for_pept:int=1, 
                              decoy_prefix:str='DECOY_',
+                             str_of_other_args:str=''
                             ) :
-    other_args = ['-d', fasta_path,
+    wrong_add_args = ['-d ', '-pdir ', 
+                      '-samples ', '-prefix ', 
+                      '-out ', '-out_folder ',
+                     ]
+    if str_of_other_args :
+        for wrong_add_arg in wrong_add_args :
+            if str_of_other_args.find(wrong_add_arg)>=0 :
+                msg = 'Ignoring {} parameter from additional args to ms1searchpy'.format(wrong_add_arg)
+                logger.info(msg)
+                str_of_other_args = str_of_other_args.split(wrong_add_arg)[0] + ' '.join(str_of_other_args.split(wrong_add_arg)[-1].strip().split()[1:])
+        other_args = [x.strip('\"\'\ ') for x in str_of_other_args.split(' ')]
+    else :
+        other_args = []
+    base_args = ['-d', fasta_path,
                   '-pdir', pdir,
                   '-samples', samples,
                   '-prefix', decoy_prefix, 
@@ -858,7 +872,7 @@ def call_DirectMS1quantmulti(path_to_ms1searchpy:str, pdir:str, fasta_path:str, 
                   '-out', out,
                   '-out_folder', out_folder,
                   ]
-    final_args = [path_to_ms1searchpy, ] + other_args
+    final_args = [path_to_ms1searchpy, ] + base_args + other_args
     final_args = list(filter(lambda x: False if x=='' else True, final_args))
     logger.debug(final_args)
     process = subprocess.Popen(final_args,
@@ -949,6 +963,7 @@ def plot_tax_barplot(path_to_file:str, group:str='OX', search:str='blind', ascen
         savepath = path.join(path.dirname(path_to_file), '_'.join([search, file, group])+'.png')
         fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
         plt.close()
+
         
 def plot_tax_boxplot(path_to_file:str, search:str='blind', group:str='OX', ascending:bool=True) :
     plt.ioff()
@@ -967,7 +982,8 @@ def plot_tax_boxplot(path_to_file:str, search:str='blind', group:str='OX', ascen
     savepath = path.join(path.dirname(path_to_file), '_'.join([search, 'taxonomy', 'boxplot', group])+'.png')
     fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
     plt.close()
-        
+
+    
 def plot_identification_hist(path_to_file:str, search:str='blind' ) : #save:bool=False) :
     # path_to_file = '/home/kae-13-1/bact_VGNKI_Apr2024/target_group_by_genus.tsv'
     plt.ioff()
@@ -990,8 +1006,9 @@ def plot_identification_hist(path_to_file:str, search:str='blind' ) : #save:bool
     savepath = path.join(path.dirname(path_to_file), '_'.join([search, 'identified_proteins'])+'.png')
     fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
     plt.close()
+
     
-def parse_fasta_for_quant(fasta_path:str) :
+def parse_fasta_for_quant(fasta_path:str, level:str='OX') :
     prot_dict = dict()
     ox_list = []
     for descr, seq in fasta.read(fasta_path) :
@@ -1004,56 +1021,63 @@ def parse_fasta_for_quant(fasta_path:str) :
             ox_list.append(ox)
             prot_dict[ox] = set([dbname])
     ox_name_dict = NCBITaxa().get_taxid_translator(ox_list)
-    return prot_dict, ox_list, ox_name_dict
+    level_dict = {}
+    if level != 'OX' :
+        for ox in ox_list :
+            lineage = NCBITaxa().get_lineage(int(ox))
+            ranks = NCBITaxa().get_rank(lineage)
+            try :
+                level_dict[ox] = [k for k in ranks.keys() if ranks[k] == level][0]
+            except IndexError :
+                level_dict[ox] = ''
+                continue
+    return prot_dict, ox_list, ox_name_dict, level_dict
 
 
-def fc_plot(quant_peptides_file:str, fasta:str='', ) : 
+def fc_plot(quant_peptides_file:str, fasta:str='', save_path:str='', level:str='OX') : 
     comp = '_'.join(quant_peptides_file.rstrip('_quant_peptides.tsv').split('_')[-3:])
-    prot_dict, ox_list, ox_name_dict = parse_fasta_for_quant(fasta)
+    prot_dict, ox_list, ox_name_dict, level_dict = parse_fasta_for_quant(fasta, level)
     df = pd.read_csv(quant_peptides_file, sep = '\t')
     df_base = df[df['decoy'] == False].copy()
     df_base = df_base.drop_duplicates(subset='peptide')
     baseline = np.histogram(df_base['FC'].tolist(), bins = 120, range = (-12, 12), density = True)
     
-    for ox in ox_list:
-        fig, ax = plt.subplots(1, 2, figsize = (26/2.54, 10/2.54))
-        sns.lineplot(x = baseline[1][:-1], y = baseline[0], ax = ax[0], color = 'blue')
-        ax[0].set_title('Baseline', fontsize = 12, fontweight = 'bold')
-        ax[0].tick_params(axis ='both', labelsize = 12)
-        ax[0].set_xlabel('log2FC', fontsize = 12)
-        ax[0].set_ylabel('Normalized density', fontsize = 12)
-        ax[0].set_xticks(np.arange(-12, 15, 3))
+    if level == 'OX' :
+        for ox in ox_list:
+            tmp_df = df[df['proteins'].isin(prot_dict[ox])].copy()
+            tmp_df = tmp_df.drop_duplicates(subset='peptide')
+            pepts = np.histogram(tmp_df[tmp_df['decoy'] == False]['FC'].tolist(), 
+                                 bins = 120, range = (-12, 12), density = True)
+            fin = pepts[0] - baseline[0]
     
-        tmp_df = df[df['proteins'].apply(lambda x: x in prot_dict[ox])].copy()
-        tmp_df = tmp_df.drop_duplicates(subset='peptide')
-        pepts = np.histogram(tmp_df[tmp_df['decoy'] == False]['FC'].tolist(), 
-                             bins = 120, range = (-12, 12), density = True)
-        fin = pepts[0] - baseline[0]
-
-        pepts_custom = pepts[1][1:] + (pepts[1][1] - pepts[1][0])/2
-        exp_value2 = np.average(pepts_custom, weights=fin.clip(0, 1e6))
-
-        # up = comp.split('/')[0]
-        # down = comp.split('/')[1]
-        up = 'A'
-        down = 'B'
-        # max_mass = np.max([int(fc_orig.loc[up, s]), int(fc_orig.loc[down, s])])
-
-        sns.lineplot(x = pepts[1][:-1],  y = fin, ax = ax[1], color = 'blue')
-        title = ' '.join(ox_name_dict[ox])
-
-        # title += '{} ng/{} ng'.format(int(fc_orig.loc[up, s]), int(fc_orig.loc[down, s]))
-        ax[1].set_title(title, fontsize = 12, fontweight = 'bold')
-        ax[1].tick_params(axis ='both', labelsize = 12)
-        # ax[1].axvline(x = fc_act.loc[s, comp], color = color_vline)
-        # ax[1].axvline(x = exp_value2, color = 'red')
-        ax[1].set_xlabel('log2FC', fontsize = 12)
-        ax[1].set_xticks(np.arange(-12, 15, 3))
-        # ax[1].set_ylabel('Normalized density', fontsize = 12)
-        savepath = path.join(path.dirname(quant_peptides_file).replace('quantitation', 'results'), '_'.join(['tax_quant_', comp, str(ox)])+'.png')
-        fig.savefig(savepath, dpi = 300, transparent = False, bbox_inches = 'tight')
-        plt.close()
+            pepts_custom = pepts[1][1:] + (pepts[1][1] - pepts[1][0])/2
+            exp_value2 = np.average(pepts_custom, weights=fin.clip(0, 1e6))
+            save_df = pd.DataFrame({'pepts[0]':pepts[0], 'pepts[1]':pepts[1][:-1], 'fin':fin}, index=np.arange(len(pepts[0])))
+            if save_path :
+                save_df.to_csv(save_path.replace('.tsv', '_'+str(ox)+'.tsv'), index=False, sep='\t')
+    else :
+        level_ox_dict = {}
+        for ox in ox_list :
+            if not level_dict[ox] in level_ox_dict.keys() : 
+                level_ox_dict[level_dict[ox]] = set()
+            level_ox_dict[level_dict[ox]].add(ox)
+        for ox in level_ox_dict.keys() :
+            prot_set = set()
+            for tid in level_ox_dict[ox] :
+                prot_set.update(prot_dict[tid])
+            tmp_df = df[df['proteins'].isin(prot_set)].copy()
+            tmp_df = tmp_df.drop_duplicates(subset='peptide')
+            pepts = np.histogram(tmp_df[tmp_df['decoy'] == False]['FC'].tolist(), 
+                                 bins = 120, range = (-12, 12), density = True)
+            fin = pepts[0] - baseline[0]
     
+            pepts_custom = pepts[1][1:] + (pepts[1][1] - pepts[1][0])/2
+            exp_value2 = np.average(pepts_custom, weights=fin.clip(0, 1e6))
+            save_df = pd.DataFrame({'pepts[0]':pepts[0], 'pepts[1]':pepts[1][:-1], 'fin':fin}, index=np.arange(len(pepts[0])))
+            if save_path :
+                save_df.to_csv(save_path.replace('.tsv', '_'+str(ox)+'.tsv'), index=False, sep='\t')
+
+                
 def read_cfg(file, category) :
     with open(file, 'r') as ff :
         f = ff.read()
