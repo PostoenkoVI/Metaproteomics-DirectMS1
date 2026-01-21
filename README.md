@@ -14,7 +14,11 @@ Next, install DeepLC in clean environment to avoid version collisions:
 
     pip install https://github.com/markmipt/DeepLC/archive/refs/heads/alternative_best_model.zip
 
-After that, install MetaDirectMS1 freely:
+After that, install ms1searchpy search engine:
+
+    pip install git+https://github.com/PostoenkoVI/ms1searchpy
+
+And then, install MetaDirectMS1 freely:
 
     pip install git+https://github.com/PostoenkoVI/Metaproteomics-DirectMS1
 
@@ -35,7 +39,10 @@ Each category of config file is independent set of parameters and only one is re
 So if in any case analysis stopped before sucessfull ending, `-mode 0` option with exact same inputs and output folder should help to continue workflow from last completed stage. By default `-mode 1` is using to rewrite any old results in output folder.
 
 ### Tooltips
-There is an important point in the analysis where user's attention and interpretation is needed. By default MetaDirectMS1 is running all its stages one-by-one, however it is helpfull to check the size of the automatically generated precise search protein database in the log file or manually after the blind search is done. It is recommended to keep the protein database size lower than 200-300 thousands proteins for the search engine to work efficently. To control the database size the file `outdir/results/blind_identified_proteins_GROUP.tsv` contains the column `include in combined fasta` (where `GROUP` is a taxonomy level for the analysis, `OX` by default). Accordingly, after the blind search stage is done it is recommended to check the `blind_identified_proteins_GROUP.tsv` and manually edit the column `include in combined fasta` excluding poorly detected taxonomy groups (or choosing the groups of interest if any prior information about the samples is availiable) to avoid extra wide search space. 
+There is an important point in the analysis where user's attention and interpretation is needed. By default MetaDirectMS1 is running all its stages one-by-one, however it is helpfull to check the size of the automatically generated precise search protein database in the log file or manually after the blind search is done. It is recommended to keep the protein database size lower than 200-300 thousands proteins for the search engine to work efficently. To control the database size the file `outdir/results/blind_identified_proteins_GROUP.tsv` contains the column `include in combined fasta` (where `GROUP` is a taxonomy level for the analysis, `OX` by default). Accordingly, after the blind search stage is done it is recommended to check the `blind_identified_proteins_GROUP.tsv` and manually edit the column `include in combined fasta` excluding poorly detected taxonomy groups (or choosing the groups of interest if any prior information about the samples is availiable) to avoid extra wide search space.
+
+### Known issues
+Running MetaDirectMS1 in Jupyter notebook an error "ValueError: Key backend: 'module://matplotlib_inline.backend_inline' is not a valid value for backend; supported values ..." could happen. This is specific to Jupyter and caused by conflict of the virtual environments and is solved by installing matplotlib-inline inside the notebook.
 
 ## Workflow stages & Output description
 
