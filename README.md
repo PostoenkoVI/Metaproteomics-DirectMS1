@@ -60,13 +60,39 @@ Here input `.fasta` database is parsed to reduce it approximately 10-times, whil
 Alongside with `.fasta` to search into, algorithm needs LC-MS data to analyze. There are three formats of accepted input files: `.raw` files, `.mzML` files, and `features.tsv` tab-separated tables with [Biosaur2](https://github.com/markmipt/biosaur2) output. These formats are then consistently converted into Biosaur2 features to use in further stages. Conversion also could be consuming depending on the complexity and sizes of experimental data. Generation of the `.mzML` files is using [ThermoRawFileParser](https://github.com/compomics/ThermoRawFileParser) with `--msLevel=1` setting by default to reduce operating time and used disk space, though any `.mzML` file is acceptable. Results of this stage are stored in `outdir/mzml`, `outdir/features`.
 
 #### 3) Blind search
-On this stage algorithm searches for the top N (15 by default) most represented organisms in each file of the input data. Then combines their proteins into the file-specific `.fasta` databases and runs [ms1searchpy](https://github.com/markmipt/ms1searchpy) - ultrafast proteomics search engine for LC-MS1 spectra - to identify as much proteins from those top N organisms as it can. All intermediate results for this stage are stored in `outdir/blind_search`. Combined tables and barplots with numbers of proteins found in each file for each organism or taxonomy group are stored in `outdir/results`. 
+On this stage algorithm searches for the top N (15 by default) most represented organisms in each file of the input data. Then combines their proteins into the file-specific `.fasta` databases and runs [ms1searchpy](https://github.com/markmipt/ms1searchpy) - ultrafast proteomics search engine for LC-MS1 spectra - to identify as much proteins from those top N organisms as it can. All intermediate results for this stage are stored in `outdir/blind_search`. Combined tables and barplots with numbers of proteins found in each file for each organism or taxonomy group are stored in `outdir/results`. Main output tables are `blind_identified_proteins_OX.tsv` and `blind_identified_proteins_<taxid_group>.tsv` which both contains a number of metrics for each taxonomy id with latter allowing to control which taxonomy ids are including to the protein database for the next stage of precise search by `include in combined fasta` column. 
+
+<details>
+<summary>Columns description</summary>
+Column-by-column: `group` - taxonomy group level of the current taxonomy id, `taxid` - taxonomy id, `name` - its human-readable name, `mean identified proteins` and `median identified proteins` - mean and median numbers of identified proteins in all files, `len_fasta_by_ox` - lengths of protein databases for each species identified from that taxonomy group in list format, and `len_fasta_sum` - full length of the protein database of the taxonomy id (in `_OX` table are replaced by `len_fasta` columns since there is no grouping performed on species level), `filename` - columns contain numbers of identified proteins of that taxonomy id in each file. And last but not least `include in combined fasta`. This column appears only in the table of the chosen (by `-taxid_group` parameter) taxonomy level and controls which taxonomy ids are including to the protein database for the next stage of precise search.
+</details>
+    
+| group | taxid | name | mean identified proteins | median identified proteins | include in combined fasta | len_fasta_by_ox | len_fasta_sum | 20211103-1052_LUM2_1000526_FKJ_JB_ABRF1_01 | <Other files> |
+|-------|-------|------|--------------------------|----------------------------|---------------------------|-----------------|---------------|-------------------------------------------|-----|
+| genus | 1827 | Rhodococcus | 375.037037037037 | 366.0 | True | [9092, ..., 5054] | 191392 | 833.0 | ... |
 
 #### 4) Precise search
-On this stage, based on the previous searches, algorithm unites individual `.fasta` files into one for another search on each file to be able to compare results between files and use it in quantitation. The criteria for the organism to be included in united database is simple - at least in one file at least 2% from all found (in that file on previous stage) proteins should be relate to the organism or taxonomy group. The results tables from previous stage show which organisms are written in united database. Additionally, it is possible for user to provide custom `.fasta` database not to unite databases automatically. Again, all intermediate results for this stage are stored in `outdir/precise_search`. Combined tables and barplots with numbers of proteins found in each file for each organism or taxonomy group are stored in `outdir/results`. 
+On this stage, based on the previous searches, algorithm unites individual `.fasta` files into one for another search on each file to be able to compare results between files and use it in quantitation. The criteria for the organism to be included in united database is simple - at least in one file at least 2% from all found (in that file on previous stage) proteins should be relate to the organism or taxonomy group. The results tables from previous stage show which organisms are written in united database. Additionally, it is possible for user to provide custom `.fasta` database not to unite databases automatically. Combined tables `precise_identified_proteins_<taxid_group>.tsv` with same structure from section above and barplots for numbers of identified proteins per taxonomy group are stored in `outdir/results`. Files with full lists of the identified proteins on 5% group specific FDR for each taxonomy id are named `<mzml_name>_proteins_<taxid_group>.tsv` and stored in `outdir/precise_search` alongside other intermediate results of the current stage and have following structure. 
+
+<details>
+<summary>Columns description</summary>
+`dbname` - protein name in `.fasta` database, `score` - quality of the identification (higher - better), `matched peptides`, `theoretical peptides` - numbers of identified and theoretical peptides for the protein, `decoy` - flag decoy proteins used for FDR filtering, `taxid` and `tax_level` - taxonomy id and level of the origin organism (or group) for the protein.
+</details>
+    
+| dbname | score | matched peptides | theoretical peptides | decoy | taxid | tax_level |
+|--------|-------|------------------|----------------------|-------|-------|-----------|
+| tr\|A0A7Z9D2V4\|A0A7Z9D2V4_STRSZ | 16.897661527532268 | 32 | 176 | False | 1300 | family |
 
 #### 5) Quantitation
-Quantitation stage conducts quantitative analysis on existing identification results from Precise search stage using [DirectMS1quantmulti](https://github.com/markmipt/ms1searchpy?tab=readme-ov-file#multi-condition-protein-profiling-using-directms1quantmulti). It needs sample file with details for all project files in format of a tab-separated table. More details on quantitation are described [there](https://github.com/markmipt/ms1searchpy?tab=readme-ov-file#multi-condition-protein-profiling-using-directms1quantmulti).
+Quantitation stage conducts quantitative analysis on existing identification results from Precise search stage using [DirectMS1quantmulti](https://github.com/markmipt/ms1searchpy?tab=readme-ov-file#multi-condition-protein-profiling-using-directms1quantmulti). It needs sample file with details for all project files in format of a tab-separated table. Main output table is `DQmulti_proteins_LFQ_<experiment>.tsv` where `<experiment>` relates to the structure of the sample file. It contains LFQ metric for each protein in each sample already corrected and normalized for cross-sample comparisons with `-10` value representing missing value. It is structured like following example:
+
+| File Name | tr\|A0A7Z9D2V4\|A0A7Z9D2V4_STRSZ | Protein2 | ... |
+|-----------|----------------------------------|----------|-----|
+| File1 | 2.3453643 | 1.3452435 | ... |
+| File2 | 3.9457345 | 1.2654698 | ... |
+| ... | ... | ... | ... |
+
+More details on quantitation are described [there](https://github.com/markmipt/ms1searchpy?tab=readme-ov-file#multi-condition-protein-profiling-using-directms1quantmulti). 
 
 ## Full cmd options description
 options:
