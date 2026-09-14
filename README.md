@@ -22,10 +22,17 @@ And then, install MetaDirectMS1 freely:
 
     pip install git+https://github.com/PostoenkoVI/Metaproteomics-DirectMS1
 
-It is also recommended to update the NCBI taxonomy database before using MetaDirectMS1. To do so, run the following commands in the same Python environment and wait for a successful download.
+It is also recommended to update the NCBI taxonomy database before using MetaDirectMS1. To do so, run the following Python commands in the same environment and wait for a successful download. 
 
     from ete3 import NCBITaxa
     NCBITaxa().update_taxonomy_database()
+
+You may need to launch the Python interpreter when working from the command line. Accordingly, the complete sequence of commands will look like this:
+
+    python
+    from ete3 import NCBITaxa
+    NCBITaxa().update_taxonomy_database()
+    exit()
 
 ## Usage & Examples 
 ### Basic usage
